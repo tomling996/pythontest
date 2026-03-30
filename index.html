@@ -139,7 +139,6 @@
             </div>
 
             <div id="teacher-tab-problems" class="hidden space-y-6">
-                
                 <div class="bg-indigo-50 p-4 rounded border border-indigo-200 flex flex-col md:flex-row justify-between items-center shadow-sm">
                     <div class="mb-4 md:mb-0">
                         <h3 class="text-lg font-bold text-indigo-800">批次匯入題目</h3>
@@ -168,7 +167,7 @@
                         </div>
                         <div>
                             <label class="block font-bold mb-1">測試腳本 (Python) - 預設為檢查 print 輸出</label>
-                            <p class="text-xs text-gray-500 mb-1">請確保腳本最後會印出或回傳 `passed,total,score` 格式的字串。</p>
+                            <p class="text-xs text-gray-500 mb-1">請確保腳本最後回傳 `f"{passed},1,{score}"` 格式的字串（注意：請勿加上 print）。</p>
                             <div id="teacher-test-editor" class="w-full h-64 border border-gray-300"></div>
                         </div>
                         <div class="flex space-x-2">
@@ -198,7 +197,7 @@
     </main>
 
     <div class="fixed bottom-2 right-4 text-xs text-gray-400 font-mono">
-        lwh20260330_v4
+        lwh20260330_v5_final
     </div>
 
     <div id="teacher-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -222,17 +221,41 @@
         let editingProblemId = null; 
         let dbProblems = {};
         let dbSubmissions = {};
-        let dbSessionStats = {}; // 存儲學生的分心時間
+        let dbSessionStats = {}; 
         let activeSystemKey = null;
 
-        // 防作弊分心計時相關變數
         let isAway = false;
         let awayStartTime = null;
-        let totalAwayTime = 0; // 單位：毫秒
+        let totalAwayTime = 0; 
 
         let studentEditor, teacherDefaultEditor, teacherTestEditor;
 
-        const defaultBeginnerTestScript = `import sys\nimport io\n\ncaptured_output = io.StringIO()\nsys.stdout = captured_output\n\ntry:\n{STUDENT_CODE}\nexcept Exception:\n    pass\n\nsys.stdout = sys.__stdout__\nstudent_output = captured_output.getvalue().strip()\n\nexpected_answer = \"\"\"9.5\"\"\"\n\npassed = 1 if student_output == expected_answer.strip() else 0\nscore = 100 if passed else 0\n\nf\"{passed},1,{score}\"`;
+        const defaultBeginnerTestScript = `import sys
+import io
+
+# 1. 攔截 print 輸出
+captured_output = io.StringIO()
+sys.stdout = captured_output
+
+# 2. 執行學生程式碼
+try:
+{STUDENT_CODE}
+except Exception:
+    pass
+
+# 3. 恢復正常的 print 功能
+sys.stdout = sys.__stdout__
+student_output = captured_output.getvalue().strip()
+
+# 4. 評分邏輯 (請修改下方的預期答案)
+expected_answer = "9.5"
+
+# 強制將兩邊轉換為字串比對，防呆機制
+passed = 1 if str(student_output) == str(expected_answer).strip() else 0
+score = 100 if passed else 0
+
+# 5. 回傳結果給系統 (注意：直接寫字串，切勿加上 print())
+f"{passed},1,{score}"`;
 
         function initEditors() {
             const editorSettings = {
@@ -296,7 +319,7 @@
             showView('login-view'); 
             currentUser = null; 
             document.getElementById('student-key').value = '';
-            updateAwayTimeUI(); // 隱藏計時器
+            updateAwayTimeUI(); 
         }
 
         // ==========================================
@@ -317,7 +340,6 @@
                 awayStartTime = null;
                 updateAwayTimeUI();
                 
-                // 將分心總時間即時寫入該課節(Session)的紀錄中
                 await fetch(`${FIREBASE_BASE_URL}/session_stats/${activeSystemKey.key}/${currentUser.key}.json`, {
                     method: 'PATCH',
                     body: JSON.stringify({ awayTime: totalAwayTime })
@@ -325,7 +347,6 @@
             }
         }
 
-        // 偵測頁面可見度 (切換分頁、最小化) 與 視窗失去焦點
         window.addEventListener('blur', handleAway);
         window.addEventListener('focus', handleReturn);
         document.addEventListener('visibilitychange', () => {
@@ -342,7 +363,6 @@
                 display.classList.add('hidden');
             }
         }
-
 
         // ==========================================
         //  學生登入與驗證
@@ -389,7 +409,6 @@
                 document.getElementById('student-info-display-1').innerText = infoStr;
                 document.getElementById('student-info-display-2').innerText = infoStr;
                 
-                // 讀取該課堂密碼下，這個學生先前的分心時間
                 const stats = await fetch(`${FIREBASE_BASE_URL}/session_stats/${activeSystemKey.key}/${currentUser.key}.json`).then(r=>r.json());
                 totalAwayTime = (stats && stats.awayTime) ? stats.awayTime : 0;
                 updateAwayTimeUI();
@@ -408,7 +427,7 @@
         }
 
         // ==========================================
-        //  防作弊機制：老師產生與停用密碼
+        //  老師產生與停用密碼
         // ==========================================
         async function generateClassroomKey() {
             const key = Math.floor(100000 + Math.random() * 900000).toString();
@@ -488,7 +507,7 @@
             }
 
             document.getElementById('problem-title').innerText = prob.title;
-            document.getElementById('problem-desc').innerText = prob.desc || prob.description; // 相容兩種 JSON 命名
+            document.getElementById('problem-desc').innerText = prob.desc || prob.description; 
             studentEditor.setValue(prob.defaultCode || "# 在這裡寫下你的程式碼\n", -1);
             document.getElementById('result-message').classList.add('hidden');
             
@@ -512,7 +531,9 @@
             }
         }
 
-        // 新增：獨立的測試功能 (不記錄成績與扣除次數)
+        // ==========================================
+        // 獨立測試按鈕 (不記錄成績、有防呆相容機制)
+        // ==========================================
         async function testCode() {
             const btn = document.getElementById('test-btn');
             const resultMsg = document.getElementById('result-message');
@@ -528,8 +549,21 @@
             const pythonTestScript = scriptField.replace('{STUDENT_CODE}', indentedStudentCode);
 
             try {
-                const result = await pyodide.runPythonAsync(pythonTestScript);
-                const [passed, total, score] = result.split(',').map(Number);
+                let result = await pyodide.runPythonAsync(pythonTestScript);
+                let passed = 0, total = 1, score = 0;
+
+                // 防呆：相容新舊寫法。如果有正常回傳字串就切開，沒有就強制從 Pyodide 拿變數
+                if (typeof result === 'string' && result.includes(',')) {
+                    [passed, total, score] = result.split(',').map(Number);
+                } else {
+                    passed = pyodide.globals.get('passed') || 0;
+                    score = pyodide.globals.get('score') || 0;
+                    total = 1; 
+
+                    if (passed === undefined || score === undefined) {
+                        throw new Error("無法解析腳本的評分變數");
+                    }
+                }
 
                 resultMsg.classList.remove('hidden', 'text-red-600', 'text-green-600');
                 if (score === 100) {
@@ -540,16 +574,19 @@
                     resultMsg.classList.add('text-red-600');
                 }
             } catch (err) {
+                console.error(err);
                 resultMsg.classList.remove('hidden', 'text-green-600');
                 resultMsg.classList.add('text-red-600');
-                resultMsg.innerText = "❌ 程式語法錯誤或執行失敗！";
+                resultMsg.innerText = "❌ 程式執行失敗或語法錯誤！";
             }
 
             btn.innerText = "測試程式碼 (不計分)";
             btn.disabled = false;
         }
 
-        // 修改：正式遞交 (紀錄成績、遞交時間、分心時間)
+        // ==========================================
+        // 正式遞交 (紀錄成績、遞交時間、分心時間、防呆相容機制)
+        // ==========================================
         async function submitCode() {
             const btn = document.getElementById('submit-btn');
             const resultMsg = document.getElementById('result-message');
@@ -571,8 +608,17 @@
             const awaySeconds = Math.floor(totalAwayTime / 1000);
 
             try {
-                const result = await pyodide.runPythonAsync(pythonTestScript);
-                const [passed, total, score] = result.split(',').map(Number);
+                let result = await pyodide.runPythonAsync(pythonTestScript);
+                let passed = 0, total = 1, score = 0;
+
+                // 防呆機制
+                if (typeof result === 'string' && result.includes(',')) {
+                    [passed, total, score] = result.split(',').map(Number);
+                } else {
+                    passed = pyodide.globals.get('passed') || 0;
+                    score = pyodide.globals.get('score') || 0;
+                    total = 1; 
+                }
 
                 dbSubmissions[subKey].attempts += 1;
                 dbSubmissions[subKey].lastSubmitTime = currentTimeString;
@@ -593,6 +639,7 @@
                     resultMsg.classList.add('text-red-600');
                 }
             } catch (err) {
+                console.error(err);
                 dbSubmissions[subKey].attempts += 1;
                 dbSubmissions[subKey].lastSubmitTime = currentTimeString;
                 dbSubmissions[subKey].awayTime = awaySeconds;
@@ -645,7 +692,6 @@
             dbSubmissions = subRes || {};
             activeSystemKey = sysRes || null;
 
-            // 讀取當前課節所有學生的分心時間紀錄
             if (activeSystemKey && activeSystemKey.key) {
                 dbSessionStats = await fetch(`${FIREBASE_BASE_URL}/session_stats/${activeSystemKey.key}.json`).then(r => r.json()) || {};
             } else {
@@ -680,7 +726,6 @@
                 const probTitle = dbProblems[s.pId] ? dbProblems[s.pId].title : '未知題目';
                 const timeText = s.lastSubmitTime || '--';
                 
-                // 計算分心時間 (優先讀取 session_stats 中的最新即時狀態，否則讀取遞交時紀錄的狀態)
                 const statKey = `${s.cls}-${s.sid}`;
                 let awaySec = s.awayTime || 0;
                 if (dbSessionStats[statKey] && dbSessionStats[statKey].awayTime !== undefined) {
@@ -874,7 +919,7 @@
                     "title": "批次匯入範例題 1 (加法)",
                     "desc": "請撰寫程式印出 5 + 3 的結果",
                     "defaultCode": "# 在這裡寫下你的程式碼\n",
-                    "testScript": "import sys\nimport io\n\ncaptured_output = io.StringIO()\nsys.stdout = captured_output\n\ntry:\n{STUDENT_CODE}\nexcept Exception:\n    pass\n\nsys.stdout = sys.__stdout__\nstudent_output = captured_output.getvalue().strip()\n\npassed = 1 if student_output == '8' else 0\nscore = 100 if passed else 0\n\nf'{passed},1,{score}'"
+                    "testScript": "import sys\nimport io\n\ncaptured_output = io.StringIO()\nsys.stdout = captured_output\n\ntry:\n{STUDENT_CODE}\nexcept Exception:\n    pass\n\nsys.stdout = sys.__stdout__\nstudent_output = captured_output.getvalue().strip()\n\npassed = 1 if str(student_output) == '8' else 0\nscore = 100 if passed else 0\n\nf'{passed},1,{score}'"
                 }
             ];
             
@@ -905,13 +950,12 @@
                     const updates = {};
 
                     importedData.forEach((prob, index) => {
-                        // 支援 desc 或 description，testScript 或 test_script
                         const probDesc = prob.desc || prob.description;
                         const probScript = prob.testScript || prob.test_script;
 
                         if (prob.title && probDesc && probScript && probScript.includes('{STUDENT_CODE}')) {
-                            prob.desc = probDesc; // 統一轉換為 desc
-                            prob.testScript = probScript; // 統一轉換為 testScript
+                            prob.desc = probDesc; 
+                            prob.testScript = probScript; 
                             prob.defaultCode = prob.defaultCode || "# 在這裡寫下你的程式碼\n";
                             
                             const pId = 'prob_' + Date.now() + '_' + index; 
