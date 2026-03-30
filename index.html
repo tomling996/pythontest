@@ -6,17 +6,17 @@
     <title>Python 課堂自動評分系統</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
-    <!-- 引入 Ace Editor (提供類似 VS Code 的編輯體驗) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.2/ace.js"></script>
     <style>
-        /* 確保編輯器有足夠的高度和圓角 */
         .ace_editor { border-radius: 0.375rem; }
     </style>
 </head>
-<body class="bg-gray-50 text-gray-800 font-sans min-h-screen">
+<body class="bg-gray-50 text-gray-800 font-sans min-h-screen relative pb-10">
 
+    <!-- 頂部導航 -->
     <header class="bg-blue-600 text-white p-4 shadow-md flex justify-between items-center">
-        <h1 class="text-xl font-bold">Python 課堂練習</h1>
+        <!-- 加入 onclick 回到首頁功能 -->
+        <h1 class="text-xl font-bold cursor-pointer hover:text-gray-200 transition" onclick="goHome()">Python 課堂練習</h1>
         <button onclick="showTeacherLogin()" class="text-sm opacity-70 hover:opacity-100">老師專區</button>
     </header>
 
@@ -63,7 +63,6 @@
                     <span>你的程式碼：</span>
                     <span id="submission-count"></span>
                 </div>
-                <!-- 替換為 Ace Editor 容器 -->
                 <div id="student-editor" class="w-full h-80 border border-gray-300"></div>
                 
                 <div class="mt-4 flex justify-between items-center">
@@ -116,8 +115,8 @@
 
             <!-- 題目管理 -->
             <div id="teacher-tab-problems" class="hidden space-y-6">
-                <div class="bg-gray-50 p-4 rounded border">
-                    <h3 class="text-lg font-bold mb-4">新增 / 編輯題目</h3>
+                <div class="bg-gray-50 p-4 rounded border" id="problem-editor-section">
+                    <h3 class="text-lg font-bold mb-4" id="editor-form-title">新增題目</h3>
                     <div class="space-y-4">
                         <div><label class="block font-bold mb-1">題目名稱</label><input type="text" id="new-prob-title" class="w-full border p-2 rounded"></div>
                         <div><label class="block font-bold mb-1">題目描述</label><textarea id="new-prob-desc" class="w-full border p-2 rounded h-24"></textarea></div>
@@ -127,11 +126,14 @@
                             <div id="teacher-default-editor" class="w-full h-32 border border-gray-300"></div>
                         </div>
                         <div>
-                            <label class="block font-bold mb-1">測試腳本 (Python)</label>
+                            <label class="block font-bold mb-1">測試腳本 (Python) - 預設為檢查 print 輸出</label>
                             <p class="text-xs text-gray-500 mb-1">請確保腳本最後會印出或回傳 `passed,total,score` 格式的字串。</p>
                             <div id="teacher-test-editor" class="w-full h-64 border border-gray-300"></div>
                         </div>
-                        <button onclick="saveProblem()" class="bg-blue-600 text-white px-6 py-2 rounded font-bold hover:bg-blue-700">儲存題目</button>
+                        <div class="flex space-x-2">
+                            <button onclick="saveProblem()" id="save-prob-btn" class="bg-blue-600 text-white px-6 py-2 rounded font-bold hover:bg-blue-700">儲存題目</button>
+                            <button onclick="cancelEdit()" id="cancel-edit-btn" class="hidden bg-gray-400 text-white px-6 py-2 rounded font-bold hover:bg-gray-500">取消編輯</button>
+                        </div>
                     </div>
                 </div>
                 <div>
@@ -141,6 +143,11 @@
             </div>
         </div>
     </main>
+
+    <!-- 右下角版本資訊 -->
+    <div class="fixed bottom-2 right-4 text-xs text-gray-400 font-mono">
+        lwh20260330
+    </div>
 
     <div id="teacher-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
         <div class="bg-white p-6 rounded-lg shadow-lg max-w-sm w-full">
@@ -160,16 +167,42 @@
         let pyodide = null;
         let currentUser = null;
         let currentProblemId = null;
+        let editingProblemId = null; // 用於追蹤目前正在編輯的題目 ID
         let dbProblems = {};
         let dbSubmissions = {};
 
-        // 初始化 Ace Editors
         let studentEditor, teacherDefaultEditor, teacherTestEditor;
+
+        // 預設的初學者測試腳本 (檢查 print 輸出)
+        const defaultBeginnerTestScript = `import sys
+import io
+
+# 1. 攔截 print 輸出
+captured_output = io.StringIO()
+sys.stdout = captured_output
+
+# 2. 執行學生程式碼
+try:
+{STUDENT_CODE}
+except Exception:
+    pass
+
+# 3. 恢復正常的 print 功能
+sys.stdout = sys.__stdout__
+student_output = captured_output.getvalue().strip()
+
+# 4. 評分邏輯 (請修改下方的預期答案)
+expected_answer = "9.5"
+
+passed = 1 if student_output == expected_answer else 0
+score = 100 if passed else 0
+
+f"{passed},1,{score}"`;
 
         function initEditors() {
             const editorSettings = {
                 mode: "ace/mode/python",
-                theme: "ace/theme/monokai", // 類似 VS Code 的暗色主題
+                theme: "ace/theme/monokai",
                 fontSize: "14px",
                 showPrintMargin: false,
                 enableBasicAutocompletion: true,
@@ -181,15 +214,15 @@
 
             teacherDefaultEditor = ace.edit("teacher-default-editor");
             teacherDefaultEditor.setOptions(editorSettings);
-            teacherDefaultEditor.setValue("def solve():\n    pass", -1);
+            teacherDefaultEditor.setValue("# 在這裡寫下你的程式碼\n", -1); // 移除 def solve()
 
             teacherTestEditor = ace.edit("teacher-test-editor");
             teacherTestEditor.setOptions(editorSettings);
-            teacherTestEditor.setValue("# 測試腳本範例\n{STUDENT_CODE}\n\npassed = 1\ntotal = 1\nscore = 100\nf\"{passed},{total},{score}\"", -1);
+            teacherTestEditor.setValue(defaultBeginnerTestScript, -1);
         }
 
         async function init() {
-            initEditors(); // 載入編輯器
+            initEditors();
             try {
                 const [pyodideInstance, probRes, subRes] = await Promise.all([
                     loadPyodide(),
@@ -208,6 +241,15 @@
             }
         }
         init();
+
+        // 回到首頁邏輯
+        function goHome() {
+            if (currentUser) {
+                showView('problem-select-view');
+            } else {
+                showLogin();
+            }
+        }
 
         function showView(viewId) {
             ['login-view', 'problem-select-view', 'student-view', 'teacher-view'].forEach(id => {
@@ -270,8 +312,6 @@
 
             document.getElementById('problem-title').innerText = prob.title;
             document.getElementById('problem-desc').innerText = prob.desc;
-            
-            // 將題目預設程式碼放入 Ace Editor
             studentEditor.setValue(prob.defaultCode, -1);
             document.getElementById('result-message').classList.add('hidden');
             
@@ -298,7 +338,6 @@
         async function submitCode() {
             const btn = document.getElementById('submit-btn');
             const resultMsg = document.getElementById('result-message');
-            // 從 Ace Editor 獲取學生的程式碼
             const studentCode = studentEditor.getValue();
             const subKey = `${currentUser.key}_${currentProblemId}`;
             const prob = dbProblems[currentProblemId];
@@ -309,7 +348,9 @@
             btn.innerText = "測試中...";
             resultMsg.classList.add('hidden');
 
-            const pythonTestScript = prob.testScript.replace('{STUDENT_CODE}', studentCode);
+            // 處理縮排問題：將學生的程式碼每行前面加上 4 個空白，以符合 try 區塊的縮排
+            const indentedStudentCode = studentCode.split('\n').map(line => '    ' + line).join('\n');
+            const pythonTestScript = prob.testScript.replace('{STUDENT_CODE}', indentedStudentCode);
 
             try {
                 const result = await pyodide.runPythonAsync(pythonTestScript);
@@ -405,6 +446,36 @@
             });
         }
 
+        // 編輯題目功能
+        function editProblem(pId) {
+            const prob = dbProblems[pId];
+            editingProblemId = pId;
+            
+            document.getElementById('editor-form-title').innerText = "編輯題目";
+            document.getElementById('new-prob-title').value = prob.title;
+            document.getElementById('new-prob-desc').value = prob.desc;
+            teacherDefaultEditor.setValue(prob.defaultCode, -1);
+            teacherTestEditor.setValue(prob.testScript, -1);
+            
+            document.getElementById('save-prob-btn').innerText = "更新題目";
+            document.getElementById('cancel-edit-btn').classList.remove('hidden');
+            
+            // 捲動到編輯區
+            document.getElementById('problem-editor-section').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function cancelEdit() {
+            editingProblemId = null;
+            document.getElementById('editor-form-title').innerText = "新增題目";
+            document.getElementById('new-prob-title').value = '';
+            document.getElementById('new-prob-desc').value = '';
+            teacherDefaultEditor.setValue("# 在這裡寫下你的程式碼\n", -1);
+            teacherTestEditor.setValue(defaultBeginnerTestScript, -1);
+            
+            document.getElementById('save-prob-btn').innerText = "儲存題目";
+            document.getElementById('cancel-edit-btn').classList.add('hidden');
+        }
+
         async function saveProblem() {
             const title = document.getElementById('new-prob-title').value.trim();
             const desc = document.getElementById('new-prob-desc').value.trim();
@@ -416,14 +487,14 @@
                 return;
             }
 
-            const pId = 'prob_' + Date.now();
+            // 如果正在編輯，則使用原來的 ID，否則產生新 ID
+            const pId = editingProblemId ? editingProblemId : 'prob_' + Date.now();
             dbProblems[pId] = { title, desc, defaultCode, testScript };
 
             await fetch(`${FIREBASE_BASE_URL}/problems/${pId}.json`, { method: 'PUT', body: JSON.stringify(dbProblems[pId]) });
 
-            alert("題目新增成功！");
-            document.getElementById('new-prob-title').value = '';
-            document.getElementById('new-prob-desc').value = '';
+            alert(editingProblemId ? "題目更新成功！" : "題目新增成功！");
+            cancelEdit(); // 清空表單並恢復為新增模式
             renderTeacherProblemList();
             updateTeacherProblemFilter();
         }
@@ -434,7 +505,13 @@
             Object.entries(dbProblems).forEach(([pId, prob]) => {
                 const li = document.createElement('li');
                 li.className = "flex justify-between items-center border-b pb-2";
-                li.innerHTML = `<span class="font-bold">${prob.title}</span><button onclick="deleteProblem('${pId}')" class="text-red-500 text-sm hover:underline">刪除</button>`;
+                li.innerHTML = `
+                    <span class="font-bold">${prob.title}</span>
+                    <div class="space-x-4">
+                        <button onclick="editProblem('${pId}')" class="text-blue-600 text-sm hover:underline">編輯</button>
+                        <button onclick="deleteProblem('${pId}')" class="text-red-500 text-sm hover:underline">刪除</button>
+                    </div>
+                `;
                 list.appendChild(li);
             });
         }
@@ -443,6 +520,7 @@
             if(confirm("確定要刪除此題目嗎？")) {
                 delete dbProblems[pId];
                 await fetch(`${FIREBASE_BASE_URL}/problems/${pId}.json`, { method: 'DELETE' });
+                if (editingProblemId === pId) cancelEdit();
                 renderTeacherProblemList();
                 updateTeacherProblemFilter();
                 renderTeacherTable();
