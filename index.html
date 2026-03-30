@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Python 課堂自動評分系統</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 Pyodide 用於在瀏覽器執行 Python -->
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans min-h-screen">
+
+    <!-- 頂部導航 -->
+    <header class="bg-blue-600 text-white p-4 shadow-md flex justify-between items-center">
+        <h1 class="text-xl font-bold">Python 課堂練習</h1>
+        <button onclick="showTeacherLogin()" class="text-sm opacity-70 hover:opacity-100">老師專區</button>
+    </header>
+
+    <main id="app-container" class="max-w-3xl mx-auto p-4 mt-6">
+        <!-- 載入中畫面 -->
+        <div id="loading-view" class="text-center py-20">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p class="text-gray-600" id="loading-text">系統初始化中（正在載入 Python 引擎與資料庫）...</p>
+        </div>
+
+        <!-- 1. 學生身分識別畫面 -->
+        <div id="login-view" class="hidden bg-white p-6 rounded-lg shadow-md max-w-md mx-auto">
+            <h2 class="text-2xl font-bold mb-4 text-center">進入課堂</h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">班級</label>
+                    <input type="text" id="student-class" placeholder="例如：3A" class="mt-1 block w-full border border-gray-300 rounded-md p-2">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">學號</label>
+                    <input type="text" id="student-id" placeholder="例如：15" class="mt-1 block w-full border border-gray-300 rounded-md p-2">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">姓名</label>
+                    <input type="text" id="student-name" placeholder="例如：陳大文" class="mt-1 block w-full border border-gray-300 rounded-md p-2">
+                </div>
+                <button onclick="loginStudent()" class="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 transition">開始作答</button>
+            </div>
+            <p id="login-error" class="text-red-500 text-sm mt-2 hidden">請填寫所有資料</p>
+        </div>
+
+        <!-- 2. 學生作答畫面 -->
+        <div id="student-view" class="hidden space-y-6">
+            <div class="bg-white p-6 rounded-lg shadow-md">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold" id="problem-title">題目：兩數之和</h2>
+                    <span class="text-sm bg-gray-200 px-2 py-1 rounded" id="student-info-display"></span>
+                </div>
+                <p class="text-gray-700 mb-4" id="problem-desc">請撰寫一個函數 <code>solve(a, b)</code>，回傳 a 與 b 的總和。</p>
+                
+                <div class="mb-2 flex justify-between text-sm text-gray-600">
+                    <span>你的程式碼：</span>
+                    <span id="submission-count">剩餘提交次數：3</span>
+                </div>
+                <textarea id="code-editor" class="w-full h-64 font-mono text-sm bg-gray-900 text-green-400 p-4 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" spellcheck="false">def solve(a, b):
+    # 在這裡寫下你的程式碼
+    pass</textarea>
+                
+                <div class="mt-4 flex justify-between items-center">
+                    <button id="submit-btn" onclick="submitCode()" class="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 transition font-bold">提交測試</button>
+                    <div id="result-message" class="font-bold text-lg hidden"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. 老師監控畫面 -->
+        <div id="teacher-view" class="hidden bg-white p-6 rounded-lg shadow-md">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold">課堂成績監控</h2>
+                <div>
+                    <button onclick="loadDataAndRender()" class="text-green-600 hover:underline mr-4">重新整理成績</button>
+                    <button onclick="showLogin()" class="text-blue-600 hover:underline">返回</button>
+                </div>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full bg-white border border-gray-200">
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th class="py-2 px-4 border-b text-left">班級</th>
+                            <th class="py-2 px-4 border-b text-left">學號</th>
+                            <th class="py-2 px-4 border-b text-left">姓名</th>
+                            <th class="py-2 px-4 border-b text-left">最高分數</th>
+                            <th class="py-2 px-4 border-b text-left">提交次數</th>
+                        </tr>
+                    </thead>
+                    <tbody id="teacher-table-body">
+                        <!-- 成績動態插入這裡 -->
+                    </tbody>
+                </table>
+            </div>
+            <button onclick="clearData()" class="mt-4 text-red-600 text-sm hover:underline">清除所有資料 (開始新課堂時使用)</button>
+        </div>
+    </main>
+
+    <!-- 老師登入 Modal -->
+    <div id="teacher-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+        <div class="bg-white p-6 rounded-lg shadow-lg max-w-sm w-full">
+            <h3 class="text-lg font-bold mb-4">請輸入老師密碼</h3>
+            <input type="password" id="teacher-pwd" class="w-full border p-2 rounded mb-4" placeholder="預設密碼：123">
+            <div class="flex justify-end space-x-2">
+                <button onclick="closeTeacherModal()" class="px-4 py-2 bg-gray-200 rounded">取消</button>
+                <button onclick="verifyTeacher()" class="px-4 py-2 bg-blue-600 text-white rounded">登入</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 系統設定 ---
+        const MAX_SUBMISSIONS = 3; // 老師設定：最大提交次數
+        // 這是你專屬的 Firebase 資料庫網址
+        const FIREBASE_URL = "https://ktsssprogram-default-rtdb.asia-southeast1.firebasedatabase.app/submissions.json";
+        
+        let pyodide = null;
+        let currentUser = null;
+        let submissionsData = {};
+
+        // --- 初始化 Pyodide 與載入資料 ---
+        async function init() {
+            try {
+                // 同時載入 Python 引擎和從 Firebase 讀取歷史資料
+                const [pyodideInstance, dbData] = await Promise.all([
+                    loadPyodide(),
+                    fetch(FIREBASE_URL).then(res => res.json())
+                ]);
+                
+                pyodide = pyodideInstance;
+                if (dbData) {
+                    submissionsData = dbData;
+                }
+
+                document.getElementById('loading-view').classList.add('hidden');
+                document.getElementById('login-view').classList.remove('hidden');
+            } catch (err) {
+                console.error(err);
+                alert("載入系統失敗，請檢查網路連線。");
+            }
+        }
+        init();
+
+        // --- 視圖切換邏輯 ---
+        function showView(viewId) {
+            ['login-view', 'student-view', 'teacher-view'].forEach(id => {
+                document.getElementById(id).classList.add('hidden');
+            });
+            document.getElementById(viewId).classList.remove('hidden');
+        }
+
+        function showLogin() { showView('login-view'); }
+
+        // --- 學生登入邏輯 ---
+        function loginStudent() {
+            const cls = document.getElementById('student-class').value.trim();
+            const sid = document.getElementById('student-id').value.trim();
+            const name = document.getElementById('student-name').value.trim();
+
+            if (!cls || !sid || !name) {
+                document.getElementById('login-error').classList.remove('hidden');
+                return;
+            }
+
+            const userKey = `${cls}-${sid}`;
+            currentUser = { cls, sid, name, key: userKey };
+            
+            // 初始化學生成績紀錄
+            if (!submissionsData[userKey]) {
+                submissionsData[userKey] = { cls, sid, name, maxScore: 0, attempts: 0 };
+                saveDataToFirebase(); // 建立新學生時儲存到資料庫
+            }
+
+            document.getElementById('student-info-display').innerText = `${cls} - ${sid} ${name}`;
+            updateSubmissionCount();
+            showView('student-view');
+        }
+
+        function updateSubmissionCount() {
+            const attempts = submissionsData[currentUser.key].attempts;
+            const remaining = MAX_SUBMISSIONS - attempts;
+            document.getElementById('submission-count').innerText = `剩餘提交次數：${remaining}`;
+            if (remaining <= 0) {
+                document.getElementById('submit-btn').disabled = true;
+                document.getElementById('submit-btn').classList.add('opacity-50', 'cursor-not-allowed');
+            }
+        }
+
+        // --- 核心：自動評分邏輯 ---
+        async function submitCode() {
+            const btn = document.getElementById('submit-btn');
+            const resultMsg = document.getElementById('result-message');
+            const studentCode = document.getElementById('code-editor').value;
+
+            if (submissionsData[currentUser.key].attempts >= MAX_SUBMISSIONS) return;
+
+            btn.disabled = true;
+            btn.innerText = "測試中...";
+            resultMsg.classList.add('hidden');
+
+            // 這是老師設計的測試腳本
+            const pythonTestScript = `
+import sys
+
+# 1. 老師的標準答案
+def teacher_solve(a, b):
+    return a + b
+
+# 2. 自動產生隱藏測試資料 (例如 5 組隨機數字)
+import random
+test_cases = [(random.randint(1, 100), random.randint(1, 100)) for _ in range(5)]
+
+# 3. 載入學生的程式碼
+${studentCode}
+
+# 4. 執行測試並給分
+passed = 0
+total = len(test_cases)
+for tc in test_cases:
+    try:
+        expected = teacher_solve(*tc)
+        actual = solve(*tc) # 呼叫學生的函數
+        if expected == actual:
+            passed += 1
+    except Exception:
+        pass # 發生任何錯誤皆視為不通過
+
+score = int((passed / total) * 100)
+f"{passed},{total},{score}"
+            `;
+
+            try {
+                // 在瀏覽器端執行 Python
+                const result = await pyodide.runPythonAsync(pythonTestScript);
+                const [passed, total, score] = result.split(',').map(Number);
+
+                // 更新成績
+                submissionsData[currentUser.key].attempts += 1;
+                if (score > submissionsData[currentUser.key].maxScore) {
+                    submissionsData[currentUser.key].maxScore = score;
+                }
+                
+                // 將最新成績上傳到 Firebase
+                await saveDataToFirebase();
+
+                // 顯示結果
+                resultMsg.classList.remove('hidden', 'text-red-600', 'text-green-600');
+                if (score === 100) {
+                    resultMsg.innerText = "✅ 答案正確！得分：100";
+                    resultMsg.classList.add('text-green-600');
+                } else {
+                    resultMsg.innerText = `❌ 答案錯誤 (通過 ${passed}/${total} 個測試)。得分：${score}`;
+                    resultMsg.classList.add('text-red-600');
+                }
+
+            } catch (err) {
+                // 捕捉學生程式碼的嚴重語法錯誤
+                submissionsData[currentUser.key].attempts += 1;
+                await saveDataToFirebase();
+                
+                resultMsg.classList.remove('hidden');
+                resultMsg.classList.add('text-red-600');
+                resultMsg.innerText = "❌ 程式執行失敗或語法錯誤！得分：0";
+            }
+
+            updateSubmissionCount();
+            btn.disabled = submissionsData[currentUser.key].attempts >= MAX_SUBMISSIONS;
+            btn.innerText = "提交測試";
+        }
+
+        // --- 老師面板邏輯 ---
+        function showTeacherLogin() {
+            document.getElementById('teacher-modal').classList.remove('hidden');
+        }
+        function closeTeacherModal() {
+            document.getElementById('teacher-modal').classList.add('hidden');
+            document.getElementById('teacher-pwd').value = '';
+        }
+        async function verifyTeacher() {
+            const pwd = document.getElementById('teacher-pwd').value;
+            if (pwd === '123') { // 預設密碼
+                closeTeacherModal();
+                await loadDataAndRender();
+                showView('teacher-view');
+            } else {
+                alert('密碼錯誤');
+            }
+        }
+
+        // 從 Firebase 重新抓取最新資料並顯示
+        async function loadDataAndRender() {
+            try {
+                const res = await fetch(FIREBASE_URL);
+                const dbData = await res.json();
+                if (dbData) {
+                    submissionsData = dbData;
+                } else {
+                    submissionsData = {};
+                }
+                renderTeacherTable();
+            } catch (err) {
+                console.error("讀取資料失敗", err);
+            }
+        }
+
+        function renderTeacherTable() {
+            const tbody = document.getElementById('teacher-table-body');
+            tbody.innerHTML = '';
+            
+            // 將資料轉為陣列並按班級、學號排序
+            const students = Object.values(submissionsData).sort((a, b) => {
+                if (a.cls !== b.cls) return a.cls.localeCompare(b.cls);
+                return a.sid.localeCompare(b.sid);
+            });
+
+            students.forEach(s => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="py-2 px-4 border-b">${s.cls}</td>
+                    <td class="py-2 px-4 border-b">${s.sid}</td>
+                    <td class="py-2 px-4 border-b">${s.name}</td>
+                    <td class="py-2 px-4 border-b font-bold ${s.maxScore === 100 ? 'text-green-600' : 'text-red-600'}">${s.maxScore}</td>
+                    <td class="py-2 px-4 border-b">${s.attempts} / ${MAX_SUBMISSIONS}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // --- Firebase 資料庫操作 ---
+        async function saveDataToFirebase() {
+            try {
+                // 使用 PUT 請求覆蓋更新整個 submissions 節點
+                await fetch(FIREBASE_URL, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(submissionsData)
+                });
+            } catch (err) {
+                console.error("儲存到 Firebase 失敗", err);
+            }
+        }
+
+        async function clearData() {
+            if(confirm('確定要清除所有學生成績嗎？這將會刪除資料庫中的所有紀錄！')) {
+                submissionsData = {};
+                await saveDataToFirebase();
+                renderTeacherTable();
+            }
+        }
+    </script>
+</body>
+</html>
