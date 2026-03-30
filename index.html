@@ -9,6 +9,10 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.2/ace.js"></script>
     <style>
         .ace_editor { border-radius: 0.375rem; }
+        /* 自訂滾動條讓終端機更美觀 */
+        #terminal-output::-webkit-scrollbar { width: 8px; }
+        #terminal-output::-webkit-scrollbar-track { background: #1f2937; }
+        #terminal-output::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-800 font-sans min-h-screen relative pb-10">
@@ -62,18 +66,29 @@
                         <button onclick="showView('problem-select-view')" class="text-blue-600 text-sm hover:underline">返回題目列表</button>
                     </div>
                 </div>
-                <div class="bg-gray-100 p-4 rounded-md mb-4 whitespace-pre-wrap" id="problem-desc"></div>
+                <div class="bg-gray-100 p-4 rounded-md mb-4 whitespace-pre-wrap font-mono text-sm" id="problem-desc"></div>
                 
                 <div class="mb-2 flex justify-between text-sm text-gray-600">
-                    <span>你的程式碼：</span>
-                    <span id="submission-count"></span>
+                    <span class="font-bold">你的程式碼：</span>
+                    <span id="submission-count" class="font-bold text-red-500"></span>
                 </div>
                 <div id="student-editor" class="w-full h-80 border border-gray-300"></div>
                 
-                <div class="mt-4 flex flex-col md:flex-row justify-between items-center space-y-3 md:space-y-0">
+                <div class="mt-4 rounded-md border border-gray-300 shadow-sm overflow-hidden">
+                    <div class="bg-gray-800 text-gray-200 px-4 py-2 flex justify-between items-center">
+                        <span class="text-sm font-bold flex items-center">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M4 17h16a2 2 0 002-2V5a2 2 0 00-2-2H4a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                            終端機 (Terminal)
+                        </span>
+                        <button onclick="clearTerminal()" class="text-xs text-gray-400 hover:text-white transition font-bold">清除紀錄</button>
+                    </div>
+                    <div id="terminal-output" class="w-full h-40 bg-black text-green-400 font-mono p-3 overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed"></div>
+                </div>
+                
+                <div class="mt-6 flex flex-col md:flex-row justify-between items-center space-y-3 md:space-y-0">
                     <div class="space-x-2 flex">
-                        <button id="test-btn" onclick="testCode()" class="bg-gray-600 text-white px-6 py-2 rounded-md hover:bg-gray-700 transition font-bold shadow-sm">測試程式碼 (不計分)</button>
-                        <button id="submit-btn" onclick="submitCode()" class="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 transition font-bold shadow-sm">正式遞交</button>
+                        <button id="test-btn" onclick="testCode()" class="bg-gray-600 text-white px-6 py-2 rounded-md hover:bg-gray-700 transition font-bold shadow-sm">🔍 測試程式碼</button>
+                        <button id="submit-btn" onclick="submitCode()" class="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 transition font-bold shadow-sm">🚀 正式遞交</button>
                     </div>
                     <div id="result-message" class="font-bold text-lg hidden text-center md:text-right"></div>
                 </div>
@@ -159,7 +174,7 @@
                     <h3 class="text-lg font-bold mb-4" id="editor-form-title">新增題目</h3>
                     <div class="space-y-4">
                         <div><label class="block font-bold mb-1">題目名稱</label><input type="text" id="new-prob-title" class="w-full border p-2 rounded"></div>
-                        <div><label class="block font-bold mb-1">題目描述</label><textarea id="new-prob-desc" class="w-full border p-2 rounded h-24"></textarea></div>
+                        <div><label class="block font-bold mb-1">題目描述</label><textarea id="new-prob-desc" class="w-full border p-2 rounded h-24 font-mono"></textarea></div>
                         
                         <div>
                             <label class="block font-bold mb-1">學生預設程式碼</label>
@@ -196,8 +211,8 @@
         </div>
     </main>
 
-    <div class="fixed bottom-2 right-4 text-xs text-gray-400 font-mono">
-        lwh20260330_v5_final
+    <div class="fixed bottom-2 right-4 text-xs text-gray-400 font-mono font-bold">
+        v6_Terminal_Security
     </div>
 
     <div id="teacher-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -230,31 +245,51 @@
 
         let studentEditor, teacherDefaultEditor, teacherTestEditor;
 
+        // 供終端機使用的全域函數
+        window.appendTerminal = function(text, isError = false) {
+            const term = document.getElementById('terminal-output');
+            const span = document.createElement('span');
+            // 確保有換行
+            span.textContent = text + (text.endsWith('\n') ? '' : '\n');
+            if (isError) span.className = 'text-red-400 font-bold';
+            term.appendChild(span);
+            term.scrollTop = term.scrollHeight;
+        };
+
+        function clearTerminal() {
+            document.getElementById('terminal-output').innerHTML = '';
+        }
+
+        // 簡單的字串雜湊，用來隱藏明文密碼 (保護源碼)
+        function simpleHash(str) {
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) {
+                hash = ((hash << 5) - hash) + str.charCodeAt(i);
+                hash |= 0; 
+            }
+            return hash;
+        }
+
         const defaultBeginnerTestScript = `import sys
 import io
 
-# 1. 攔截 print 輸出
 captured_output = io.StringIO()
 sys.stdout = captured_output
 
-# 2. 執行學生程式碼
 try:
 {STUDENT_CODE}
 except Exception:
     pass
 
-# 3. 恢復正常的 print 功能
 sys.stdout = sys.__stdout__
 student_output = captured_output.getvalue().strip()
 
-# 4. 評分邏輯 (請修改下方的預期答案)
+# 評分邏輯 (請修改下方的預期答案)
 expected_answer = "9.5"
 
-# 強制將兩邊轉換為字串比對，防呆機制
 passed = 1 if str(student_output) == str(expected_answer).strip() else 0
 score = 100 if passed else 0
 
-# 5. 回傳結果給系統 (注意：直接寫字串，切勿加上 print())
 f"{passed},1,{score}"`;
 
         function initEditors() {
@@ -282,13 +317,30 @@ f"{passed},1,{score}"`;
         async function init() {
             initEditors();
             try {
-                const [pyodideInstance, probRes, subRes] = await Promise.all([
-                    loadPyodide(),
+                // 初始化 Pyodide 並攔截 stdout/stderr 導向到我們的終端機
+                const pyodideInstance = await loadPyodide({
+                    stdout: (text) => window.appendTerminal(text, false),
+                    stderr: (text) => window.appendTerminal(text, true)
+                });
+                pyodide = pyodideInstance;
+
+                // 改寫 Python 的 input()，讓它彈出瀏覽器視窗並將輸入顯示在終端機
+                await pyodide.runPythonAsync(`
+import builtins
+import js
+def custom_input(prompt_text=""):
+    res = js.prompt(prompt_text)
+    if res is None: res = ""
+    js.window.appendTerminal(str(prompt_text) + str(res), False)
+    return res
+builtins.input = custom_input
+                `);
+
+                const [probRes, subRes] = await Promise.all([
                     fetch(`${FIREBASE_BASE_URL}/problems.json`).then(r => r.json()),
                     fetch(`${FIREBASE_BASE_URL}/submissions.json`).then(r => r.json())
                 ]);
                 
-                pyodide = pyodideInstance;
                 dbProblems = probRes || {};
                 dbSubmissions = subRes || {};
 
@@ -296,6 +348,7 @@ f"{passed},1,{score}"`;
                 document.getElementById('login-view').classList.remove('hidden');
             } catch (err) {
                 alert("載入系統失敗，請檢查網路連線。");
+                console.error(err);
             }
         }
         init();
@@ -510,6 +563,7 @@ f"{passed},1,{score}"`;
             document.getElementById('problem-desc').innerText = prob.desc || prob.description; 
             studentEditor.setValue(prob.defaultCode || "# 在這裡寫下你的程式碼\n", -1);
             document.getElementById('result-message').classList.add('hidden');
+            clearTerminal(); // 清空終端機
             
             updateSubmissionCount();
             showView('student-view');
@@ -532,7 +586,7 @@ f"{passed},1,{score}"`;
         }
 
         // ==========================================
-        // 獨立測試按鈕 (不記錄成績、有防呆相容機制)
+        // 獨立測試按鈕 (包含終端機輸出顯示)
         // ==========================================
         async function testCode() {
             const btn = document.getElementById('test-btn');
@@ -541,9 +595,22 @@ f"{passed},1,{score}"`;
             const prob = dbProblems[currentProblemId];
 
             btn.disabled = true;
-            btn.innerText = "測試執行中...";
+            btn.innerText = "執行中...";
             resultMsg.classList.add('hidden');
+            
+            clearTerminal();
+            window.appendTerminal(">>> 執行你的程式碼...", false);
 
+            // 1. 執行學生的原始程式碼，讓其輸出至終端機
+            try {
+                await pyodide.runPythonAsync(studentCode);
+            } catch (err) {
+                window.appendTerminal(err.toString(), true);
+            }
+
+            window.appendTerminal("\n>>> 系統自動評分中...", false);
+
+            // 2. 執行測試腳本
             const indentedStudentCode = studentCode.split('\n').map(line => '    ' + line).join('\n');
             const scriptField = prob.testScript || prob.test_script;
             const pythonTestScript = scriptField.replace('{STUDENT_CODE}', indentedStudentCode);
@@ -552,40 +619,37 @@ f"{passed},1,{score}"`;
                 let result = await pyodide.runPythonAsync(pythonTestScript);
                 let passed = 0, total = 1, score = 0;
 
-                // 防呆：相容新舊寫法。如果有正常回傳字串就切開，沒有就強制從 Pyodide 拿變數
                 if (typeof result === 'string' && result.includes(',')) {
                     [passed, total, score] = result.split(',').map(Number);
                 } else {
                     passed = pyodide.globals.get('passed') || 0;
                     score = pyodide.globals.get('score') || 0;
                     total = 1; 
-
-                    if (passed === undefined || score === undefined) {
-                        throw new Error("無法解析腳本的評分變數");
-                    }
                 }
 
                 resultMsg.classList.remove('hidden', 'text-red-600', 'text-green-600');
                 if (score === 100) {
+                    window.appendTerminal(">>> 評分結果：通過 ✅", false);
                     resultMsg.innerText = "✅ 測試通過！請點擊「正式遞交」以紀錄成績。";
                     resultMsg.classList.add('text-green-600');
                 } else {
-                    resultMsg.innerText = `❌ 測試失敗 (通過 ${passed}/${total})。預估得分：${score}`;
+                    window.appendTerminal(`>>> 評分結果：失敗 ❌ (預估得分: ${score})`, true);
+                    resultMsg.innerText = `❌ 測試失敗 (通過 ${passed}/${total})。請檢查上方終端機的輸出是否與題目要求完全一致。`;
                     resultMsg.classList.add('text-red-600');
                 }
             } catch (err) {
-                console.error(err);
+                window.appendTerminal(">>> 評分系統執行發生錯誤！", true);
                 resultMsg.classList.remove('hidden', 'text-green-600');
                 resultMsg.classList.add('text-red-600');
-                resultMsg.innerText = "❌ 程式執行失敗或語法錯誤！";
+                resultMsg.innerText = "❌ 程式語法錯誤或執行失敗！";
             }
 
-            btn.innerText = "測試程式碼 (不計分)";
+            btn.innerText = "🔍 測試程式碼";
             btn.disabled = false;
         }
 
         // ==========================================
-        // 正式遞交 (紀錄成績、遞交時間、分心時間、防呆相容機制)
+        // 正式遞交 (紀錄成績、遞交時間、分心時間)
         // ==========================================
         async function submitCode() {
             const btn = document.getElementById('submit-btn');
@@ -599,6 +663,17 @@ f"{passed},1,{score}"`;
             btn.disabled = true;
             btn.innerText = "遞交中...";
             resultMsg.classList.add('hidden');
+            clearTerminal();
+            
+            window.appendTerminal(">>> 正式遞交：執行你的程式碼...", false);
+
+            try {
+                await pyodide.runPythonAsync(studentCode);
+            } catch (err) {
+                window.appendTerminal(err.toString(), true);
+            }
+
+            window.appendTerminal("\n>>> 正在記錄成績...", false);
 
             const indentedStudentCode = studentCode.split('\n').map(line => '    ' + line).join('\n');
             const scriptField = prob.testScript || prob.test_script;
@@ -611,7 +686,6 @@ f"{passed},1,{score}"`;
                 let result = await pyodide.runPythonAsync(pythonTestScript);
                 let passed = 0, total = 1, score = 0;
 
-                // 防呆機制
                 if (typeof result === 'string' && result.includes(',')) {
                     [passed, total, score] = result.split(',').map(Number);
                 } else {
@@ -632,9 +706,11 @@ f"{passed},1,{score}"`;
 
                 resultMsg.classList.remove('hidden', 'text-red-600', 'text-green-600');
                 if (score === 100) {
+                    window.appendTerminal(">>> 成績紀錄成功！得分：100 ✅", false);
                     resultMsg.innerText = "✅ 遞交成功，答案正確！得分：100";
                     resultMsg.classList.add('text-green-600');
                 } else {
+                    window.appendTerminal(`>>> 紀錄完畢。得分：${score} ❌`, true);
                     resultMsg.innerText = `❌ 遞交完畢，答案錯誤 (通過 ${passed}/${total})。得分：${score}`;
                     resultMsg.classList.add('text-red-600');
                 }
@@ -652,17 +728,19 @@ f"{passed},1,{score}"`;
             }
 
             updateSubmissionCount();
-            btn.innerText = "正式遞交";
+            btn.innerText = "🚀 正式遞交";
         }
 
         // ==========================================
-        //  老師專區邏輯
+        //  老師專區邏輯 (包含密碼 Hash 加密)
         // ==========================================
         function showTeacherLogin() { document.getElementById('teacher-modal').classList.remove('hidden'); }
         function closeTeacherModal() { document.getElementById('teacher-modal').classList.add('hidden'); document.getElementById('teacher-pwd').value = ''; }
         
         async function verifyTeacher() {
-            if (document.getElementById('teacher-pwd').value === 'KTSSS') {
+            const pwd = document.getElementById('teacher-pwd').value;
+            // 使用 Hash 隱藏密碼 (KTSSS 的 Hash 值為 71848938)
+            if (simpleHash(pwd) === 71848938) {
                 closeTeacherModal();
                 await loadDataAndRender();
                 updateTeacherProblemFilter();
