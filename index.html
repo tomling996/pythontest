@@ -251,7 +251,7 @@
     </main>
 
     <div class="fixed bottom-2 right-4 text-xs text-gray-400 font-mono font-bold">
-        lwh202603311141
+        lwh 2026/03/31 12:05
     </div>
 
     <div id="teacher-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -578,7 +578,7 @@ builtins.input = custom_input
                 // 直接執行學生的原始碼，不包裝評分腳本
                 await pyodide.runPythonAsync(studentCode);
                 window.appendTerminal("\n>>> 程式執行完畢。", false);
-                resultMsg.innerText = "ℹ️ 程式執行結束。請確認終端機輸出是否符合你的預期。若確認無誤，請點擊「正式遞交」進行評分。";
+                resultMsg.innerText = "ℹ️ 請確認輸出無誤，點擊「正式遞交」進行評分。";
                 resultMsg.classList.remove('hidden', 'text-red-600', 'text-green-600');
                 resultMsg.classList.add('text-blue-600');
             } catch (err) {
