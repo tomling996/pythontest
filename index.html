@@ -208,7 +208,7 @@
                         
                         <div>
                             <label class="block font-bold mb-1">預期輸出範例 (可選)</label>
-                            <p class="text-xs text-gray-500 mb-1">若填寫，學生介面將會顯示此預期結果供參考，且系統會自動帶入下方腳本的 <code>{EXPECTED_OUTPUT}</code> 進行比對。</p>
+                            <p class="text-xs text-gray-500 mb-1">若填寫，系統會自動帶入下方腳本的 <code>{EXPECTED_OUTPUT}</code> 進行防失誤的逐行精確比對。</p>
                             <textarea id="new-prob-expected" class="w-full border p-2 rounded h-16 font-mono text-sm"></textarea>
                         </div>
 
@@ -217,8 +217,8 @@
                             <div id="teacher-default-editor" class="w-full h-32 border border-gray-300"></div>
                         </div>
                         <div>
-                            <label class="block font-bold mb-1">測試腳本 (Python) - 評分核心 (穩定單次比對版)</label>
-                            <p class="text-xs text-gray-500 mb-1">請確保腳本包含 <code>{STUDENT_CODE}</code>，並使用 <code>{EXPECTED_OUTPUT}</code> 作為解答變數。</p>
+                            <label class="block font-bold mb-1">測試腳本 (Python) - 終極穩定評分版</label>
+                            <p class="text-xs text-gray-500 mb-1">腳本已升級為「逐行無空白」比對法，100% 防止學生因多餘空白或換行符號導致 0 分。</p>
                             <div id="teacher-test-editor" class="w-full h-64 border border-gray-300"></div>
                         </div>
                         <div class="flex space-x-2">
@@ -251,7 +251,7 @@
     </main>
 
     <div class="fixed bottom-2 right-4 text-xs text-gray-400 font-mono font-bold">
-        lwh20260331_v3.4_ultimate
+        lwh2026_Final_Stable
     </div>
 
     <div id="teacher-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -316,7 +316,7 @@
         }
         if(localStorage.getItem('theme') === 'dark') toggleTheme();
 
-        // 時間格式化 Helper
+        // 時間格式化 Helper (YYYY/MM/DD HH:MM:SS)
         function getFormattedTime() {
             const d = new Date();
             const pad = (n) => n.toString().padStart(2, '0');
@@ -345,11 +345,14 @@
             return hash;
         }
 
-        // 修改預設腳本：加入 {EXPECTED_OUTPUT} 動態替換變數
-        const defaultBeginnerTestScript = `import sys\nimport io\nimport builtins\n\n# 若需要輸入數據，請填入此陣列中，例如 ["Apple", "Banana"]\ninput_values = []\n\noriginal_input = builtins.input\ndef mock_input(prompt=""):\n    sys.stdout.write(prompt)\n    val = input_values.pop(0) if input_values else ""\n    sys.stdout.write(val + "\\n")\n    return val\n\nbuiltins.input = mock_input\ncaptured_output = io.StringIO()\nsys.stdout = captured_output\n\ntry:\n{STUDENT_CODE}\nexcept Exception:\n    pass\n\nsys.stdout = sys.__stdout__\nbuiltins.input = original_input # 確保還原 input 功能\n\nstudent_output = captured_output.getvalue().strip()\nexpected_answer = """{EXPECTED_OUTPUT}"""\n\npassed = 1 if str(student_output) == str(expected_answer).strip() else 0\nscore = 100 if passed else 0\n\nf"{passed},1,{score}"`;
+        // ==========================================
+        // 終極防誤判測試腳本 (採用逐行精確去空白比對)
+        // ==========================================
+        const defaultBeginnerTestScript = `import sys\nimport io\nimport builtins\n\n# 若需要輸入數據，請填入此陣列中，例如 ["Apple", "Banana"]\ninput_values = []\n\noriginal_input = builtins.input\ndef mock_input(prompt=""):\n    sys.stdout.write(prompt)\n    val = input_values.pop(0) if input_values else ""\n    sys.stdout.write(str(val) + "\\n")\n    return val\n\nbuiltins.input = mock_input\ncaptured_output = io.StringIO()\nsys.stdout = captured_output\n\ntry:\n    # 使用 exec 執行，避免 JSON 腳本注入時的縮排錯誤\n    exec("""{STUDENT_CODE}""", globals())\nexcept Exception:\n    pass\n\nsys.stdout = sys.__stdout__\nbuiltins.input = original_input\n\nstudent_out = captured_output.getvalue()\nexpected_out = """{EXPECTED_OUTPUT}"""\n\n# 終極比對法：逐行去除頭尾空白，完全無視換行符號與結尾空格的差異\nout_lines = [line.strip() for line in student_out.splitlines() if line.strip() != ""]\nexp_lines = [line.strip() for line in expected_out.splitlines() if line.strip() != ""]\n\npassed = 1 if out_lines == exp_lines else 0\nscore = 100 if passed else 0\n\nf"{passed},1,{score}"`;
 
         function initEditors() {
             const editorSettings = { mode: "ace/mode/python", theme: "ace/theme/monokai", fontSize: "14px", showPrintMargin: false, enableBasicAutocompletion: true, enableLiveAutocompletion: true };
+            
             studentEditor = ace.edit("student-editor");
             studentEditor.setOptions(editorSettings);
             
@@ -361,7 +364,7 @@
             teacherTestEditor.setOptions(editorSettings);
             teacherTestEditor.setValue(defaultBeginnerTestScript, -1);
 
-            // 教師端歷史紀錄唯讀 Editor 初始化
+            // 教師端歷史紀錄唯讀 Editor 初始化，並套用相同的高亮樣式
             teacherHistoryEditor = ace.edit("code-modal-editor");
             teacherHistoryEditor.setOptions({ ...editorSettings, readOnly: true, highlightActiveLine: false, highlightGutterLine: false });
         }
@@ -375,7 +378,6 @@
                 });
                 pyodide = pyodideInstance;
 
-                // 初始化最純粹的彈出視窗 input 邏輯
                 await pyodide.runPythonAsync(`
 import builtins
 import js
@@ -519,6 +521,7 @@ builtins.input = custom_input
                 if (searchKw && !searchTarget.toLowerCase().includes(searchKw)) return;
                 const subKey = `${currentUser.key}_${prob.pId}`; const sub = dbSubmissions[subKey];
                 
+                // 學生介面只顯示遞交狀態
                 const scoreText = sub && sub.attempts > 0 ? '✅ 已遞交' : '尚未作答';
                 const scoreColor = sub && sub.attempts > 0 ? 'text-green-600' : 'text-gray-500';
                 
@@ -593,17 +596,18 @@ builtins.input = custom_input
             btn.disabled = true; btn.innerText = "遞交中..."; resultMsg.classList.add('hidden');
             clearTerminal(); window.appendTerminal(">>> 系統紀錄與處理中...\n", false);
             
-            let indentedStudentCode = studentCode.split('\n').map(line => '    ' + line).join('\n');
-            indentedStudentCode += '\n    pass';
+            // 智慧防護：確保不相容的舊 JSON (使用沒有引號的 try) 才能進行縮排
+            let scriptField = prob.testScript || prob.test_script;
+            let injectedCode = studentCode;
 
-            const scriptField = prob.testScript || prob.test_script;
-            
-            // 將 {STUDENT_CODE} 與 {EXPECTED_OUTPUT} 動態取代進入腳本
-            let pythonTestScript = scriptField.replace('{STUDENT_CODE}', indentedStudentCode);
+            // 只有當舊腳本直接暴露 {STUDENT_CODE} 在 try 底下時，才加上強制縮排與 pass
+            if (!scriptField.includes('"""{STUDENT_CODE}"""') && scriptField.includes('try:\n{STUDENT_CODE}')) {
+                injectedCode = studentCode.split('\n').map(line => '    ' + line).join('\n') + '\n    pass';
+            }
+
+            let pythonTestScript = scriptField.replace('{STUDENT_CODE}', injectedCode);
+            // 動態替換新版腳本中的預期輸出變數
             pythonTestScript = pythonTestScript.replace('{EXPECTED_OUTPUT}', prob.expected_output || "");
-            
-            // 為了向下相容舊有未修改腳本的題目
-            pythonTestScript = pythonTestScript.replace('請在此輸入預期輸出', prob.expected_output || "");
 
             let score = 0, passed = 0, total = 1;
 
@@ -617,6 +621,7 @@ builtins.input = custom_input
                     total = 1; 
                 }
             } catch (err) {
+                // 發生任何異常，包含學生程式碼崩潰或腳本異常，皆給予 0 分，且不在終端機顯示報錯
                 score = 0;
             }
 
@@ -675,7 +680,7 @@ builtins.input = custom_input
             document.getElementById('code-modal').classList.remove('hidden');
         }
 
-        // 渲染選取的歷史記錄進入 Ace Editor 中
+        // 教師端使用 Ace Editor 渲染歷史程式碼
         function renderSelectedHistory() {
             if (!currentViewingSub) return;
             const selector = document.getElementById('history-selector'); 
@@ -687,6 +692,7 @@ builtins.input = custom_input
             
             const h = currentViewingSub.history[selector.value];
             teacherHistoryEditor.setValue(h.code || '# 無程式碼記錄', -1);
+            teacherHistoryEditor.clearSelection();
         }
 
         function closeCodeModal() { document.getElementById('code-modal').classList.add('hidden'); currentViewingSub = null; }
@@ -747,8 +753,10 @@ builtins.input = custom_input
             let subs = Object.values(dbSubmissions); if (filterPId !== 'all') subs = subs.filter(s => s.pId === filterPId);
             subs.sort((a, b) => { if (a.cls !== b.cls) return a.cls.localeCompare(b.cls); return a.sid.localeCompare(b.sid); }).forEach(s => {
                 const probTitle = dbProblems[s.pId] ? dbProblems[s.pId].title : '未知題目'; const timeText = s.lastSubmitTime || '--';
-                // 修正：完全依賴遞交紀錄內儲存的 s.awayTime 顯示，不再讀取即時 dbSessionStats
+                
+                // 鎖定顯示學生按下遞交時儲存的分心時間
                 let awaySec = s.awayTime || 0; 
+                
                 const currentSubKey = `${s.cls}-${s.sid}_${s.pId}`;
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
@@ -834,7 +842,7 @@ builtins.input = custom_input
         async function clearSubmissions() { if(confirm('確定要清除所有學生成績嗎？此操作無法復原！')) { dbSubmissions = {}; await fetch(`${FIREBASE_BASE_URL}/submissions.json`, { method: 'DELETE' }); renderTeacherTable(); } }
 
         function downloadJSONTemplate() {
-            const template = [{ "title": "加法運算 (基礎單次比對)", "desc": "請寫一個程式，印出 10 加 5 的結果。", "expected_output": "15", "defaultCode": "a = 10\nb = 5\n# 在這裡寫下你的程式碼\n", "testScript": defaultBeginnerTestScript }];
+            const template = [{ "title": "加法運算 (無腦穩定比對)", "desc": "請寫一個程式，印出 10 加 5 的結果。", "expected_output": "15", "defaultCode": "a = 10\nb = 5\n# 在這裡寫下你的程式碼\n", "testScript": defaultBeginnerTestScript }];
             const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(template, null, 4));
             const downloadAnchorNode = document.createElement('a'); downloadAnchorNode.setAttribute("href", dataStr); downloadAnchorNode.setAttribute("download", "problem_template.json");
             document.body.appendChild(downloadAnchorNode); downloadAnchorNode.click(); downloadAnchorNode.remove();
