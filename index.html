@@ -63,15 +63,22 @@
                     <h2 class="text-xl font-bold" id="problem-title"></h2>
                     <div>
                         <span class="text-sm bg-gray-200 px-3 py-1 rounded font-bold mr-2" id="student-info-display-2"></span>
-                        <button onclick="showView('problem-select-view')" class="text-blue-600 text-sm hover:underline">返回題目列表</button>
+                        <button onclick="showView('problem-select-view')" class="text-blue-600 text-sm hover:underline font-bold">返回題目列表</button>
                     </div>
                 </div>
-                <div class="bg-gray-100 p-4 rounded-md mb-4 whitespace-pre-wrap font-mono text-sm" id="problem-desc"></div>
                 
+                <div class="bg-gray-100 p-4 rounded-md mb-4 whitespace-pre-wrap font-mono text-sm text-gray-800" id="problem-desc"></div>
+                
+                <div id="expected-output-container" class="mt-4 mb-4 hidden">
+                    <h3 class="text-sm font-bold text-gray-700 mb-1">💡 預期輸出範例 (Expected Output)：</h3>
+                    <pre id="problem-expected-output" class="bg-blue-50 border border-blue-200 p-3 rounded text-sm font-mono whitespace-pre-wrap text-blue-800"></pre>
+                </div>
+
                 <div class="mb-2 flex justify-between text-sm text-gray-600">
                     <span class="font-bold">你的程式碼：</span>
                     <span id="submission-count" class="font-bold text-red-500"></span>
                 </div>
+                
                 <div id="student-editor" class="w-full h-80 border border-gray-300"></div>
                 
                 <div class="mt-4 rounded-md border border-gray-300 shadow-sm overflow-hidden">
@@ -87,7 +94,7 @@
                 
                 <div class="mt-6 flex flex-col md:flex-row justify-between items-center space-y-3 md:space-y-0">
                     <div class="space-x-2 flex">
-                        <button id="test-btn" onclick="testCode()" class="bg-gray-600 text-white px-6 py-2 rounded-md hover:bg-gray-700 transition font-bold shadow-sm">🔍 測試程式碼</button>
+                        <button id="test-btn" onclick="testCode()" class="bg-gray-600 text-white px-6 py-2 rounded-md hover:bg-gray-700 transition font-bold shadow-sm">🔍 測試程式碼 (不計分)</button>
                         <button id="submit-btn" onclick="submitCode()" class="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 transition font-bold shadow-sm">🚀 正式遞交</button>
                     </div>
                     <div id="result-message" class="font-bold text-lg hidden text-center md:text-right"></div>
@@ -100,7 +107,7 @@
                 <h2 class="text-2xl font-bold">老師專區</h2>
                 <div>
                     <button onclick="loadDataAndRender()" class="text-green-600 hover:underline mr-4 font-bold">重新整理資料</button>
-                    <button onclick="showLogin()" class="text-blue-600 hover:underline">登出</button>
+                    <button onclick="showLogin()" class="text-blue-600 hover:underline font-bold">登出</button>
                 </div>
             </div>
 
@@ -154,6 +161,7 @@
             </div>
 
             <div id="teacher-tab-problems" class="hidden space-y-6">
+                
                 <div class="bg-indigo-50 p-4 rounded border border-indigo-200 flex flex-col md:flex-row justify-between items-center shadow-sm">
                     <div class="mb-4 md:mb-0">
                         <h3 class="text-lg font-bold text-indigo-800">批次匯入題目</h3>
@@ -174,14 +182,20 @@
                     <h3 class="text-lg font-bold mb-4" id="editor-form-title">新增題目</h3>
                     <div class="space-y-4">
                         <div><label class="block font-bold mb-1">題目名稱</label><input type="text" id="new-prob-title" class="w-full border p-2 rounded"></div>
-                        <div><label class="block font-bold mb-1">題目描述</label><textarea id="new-prob-desc" class="w-full border p-2 rounded h-24 font-mono"></textarea></div>
+                        <div><label class="block font-bold mb-1">題目描述</label><textarea id="new-prob-desc" class="w-full border p-2 rounded h-24 font-mono text-sm"></textarea></div>
                         
+                        <div>
+                            <label class="block font-bold mb-1">預期輸出範例 (可選)</label>
+                            <p class="text-xs text-gray-500 mb-1">若填寫，學生介面將會顯示此預期結果供參考。</p>
+                            <textarea id="new-prob-expected" class="w-full border p-2 rounded h-16 font-mono text-sm"></textarea>
+                        </div>
+
                         <div>
                             <label class="block font-bold mb-1">學生預設程式碼</label>
                             <div id="teacher-default-editor" class="w-full h-32 border border-gray-300"></div>
                         </div>
                         <div>
-                            <label class="block font-bold mb-1">測試腳本 (Python) - 預設為檢查 print 輸出</label>
+                            <label class="block font-bold mb-1">測試腳本 (Python) - 評分核心</label>
                             <p class="text-xs text-gray-500 mb-1">請確保腳本最後回傳 `f"{passed},1,{score}"` 格式的字串（注意：請勿加上 print）。</p>
                             <div id="teacher-test-editor" class="w-full h-64 border border-gray-300"></div>
                         </div>
@@ -212,7 +226,7 @@
     </main>
 
     <div class="fixed bottom-2 right-4 text-xs text-gray-400 font-mono font-bold">
-        v6_Terminal_Security
+        v7_Final_Ultimate
     </div>
 
     <div id="teacher-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -239,17 +253,17 @@
         let dbSessionStats = {}; 
         let activeSystemKey = null;
 
+        // 防分心變數
         let isAway = false;
         let awayStartTime = null;
         let totalAwayTime = 0; 
 
         let studentEditor, teacherDefaultEditor, teacherTestEditor;
 
-        // 供終端機使用的全域函數
+        // 終端機輔助函數
         window.appendTerminal = function(text, isError = false) {
             const term = document.getElementById('terminal-output');
             const span = document.createElement('span');
-            // 確保有換行
             span.textContent = text + (text.endsWith('\n') ? '' : '\n');
             if (isError) span.className = 'text-red-400 font-bold';
             term.appendChild(span);
@@ -260,7 +274,7 @@
             document.getElementById('terminal-output').innerHTML = '';
         }
 
-        // 簡單的字串雜湊，用來隱藏明文密碼 (保護源碼)
+        // 簡易 Hash 函數，用於保護密碼
         function simpleHash(str) {
             let hash = 0;
             for (let i = 0; i < str.length; i++) {
@@ -270,6 +284,7 @@
             return hash;
         }
 
+        // 預設評分腳本 (無 print 版，強制字串比對防呆)
         const defaultBeginnerTestScript = `import sys
 import io
 
@@ -284,12 +299,13 @@ except Exception:
 sys.stdout = sys.__stdout__
 student_output = captured_output.getvalue().strip()
 
-# 評分邏輯 (請修改下方的預期答案)
+# 評分邏輯預期答案
 expected_answer = "9.5"
 
 passed = 1 if str(student_output) == str(expected_answer).strip() else 0
 score = 100 if passed else 0
 
+# 回傳結果給 Javascript 處理
 f"{passed},1,{score}"`;
 
         function initEditors() {
@@ -317,22 +333,24 @@ f"{passed},1,{score}"`;
         async function init() {
             initEditors();
             try {
-                // 初始化 Pyodide 並攔截 stdout/stderr 導向到我們的終端機
+                // 初始化 Pyodide，並將 stdout/stderr 導向終端機
                 const pyodideInstance = await loadPyodide({
                     stdout: (text) => window.appendTerminal(text, false),
                     stderr: (text) => window.appendTerminal(text, true)
                 });
                 pyodide = pyodideInstance;
 
-                // 改寫 Python 的 input()，讓它彈出瀏覽器視窗並將輸入顯示在終端機
+                // 攔截 Python 的 input 函數，將其轉至瀏覽器的 prompt，並顯示在終端機上
                 await pyodide.runPythonAsync(`
 import builtins
 import js
+
 def custom_input(prompt_text=""):
     res = js.prompt(prompt_text)
     if res is None: res = ""
     js.window.appendTerminal(str(prompt_text) + str(res), False)
     return res
+
 builtins.input = custom_input
                 `);
 
@@ -457,7 +475,7 @@ builtins.input = custom_input
                 }
 
                 activeSystemKey = sysRes;
-                currentUser = { cls, sid, key: `${cls}-${sid}` };
+                currentUser = { cls, sid, name: "Student", key: `${cls}-${sid}` };
                 const infoStr = `${cls} 班 - ${sid} 號`;
                 document.getElementById('student-info-display-1').innerText = infoStr;
                 document.getElementById('student-info-display-2').innerText = infoStr;
@@ -561,9 +579,20 @@ builtins.input = custom_input
 
             document.getElementById('problem-title').innerText = prob.title;
             document.getElementById('problem-desc').innerText = prob.desc || prob.description; 
+            
+            // 顯示預期輸出區塊
+            const expectedOutputEl = document.getElementById('problem-expected-output');
+            const expectedOutputContainer = document.getElementById('expected-output-container');
+            if (prob.expected_output && prob.expected_output.trim() !== "") {
+                expectedOutputEl.innerText = prob.expected_output;
+                expectedOutputContainer.classList.remove('hidden');
+            } else {
+                expectedOutputContainer.classList.add('hidden');
+            }
+
             studentEditor.setValue(prob.defaultCode || "# 在這裡寫下你的程式碼\n", -1);
             document.getElementById('result-message').classList.add('hidden');
-            clearTerminal(); // 清空終端機
+            clearTerminal(); 
             
             updateSubmissionCount();
             showView('student-view');
@@ -586,7 +615,7 @@ builtins.input = custom_input
         }
 
         // ==========================================
-        // 獨立測試按鈕 (包含終端機輸出顯示)
+        // 獨立測試按鈕 (不記錄成績，顯示終端機)
         // ==========================================
         async function testCode() {
             const btn = document.getElementById('test-btn');
@@ -601,8 +630,8 @@ builtins.input = custom_input
             clearTerminal();
             window.appendTerminal(">>> 執行你的程式碼...", false);
 
-            // 1. 執行學生的原始程式碼，讓其輸出至終端機
             try {
+                // 先單獨跑學生的程式，印到終端機
                 await pyodide.runPythonAsync(studentCode);
             } catch (err) {
                 window.appendTerminal(err.toString(), true);
@@ -610,15 +639,16 @@ builtins.input = custom_input
 
             window.appendTerminal("\n>>> 系統自動評分中...", false);
 
-            // 2. 執行測試腳本
             const indentedStudentCode = studentCode.split('\n').map(line => '    ' + line).join('\n');
             const scriptField = prob.testScript || prob.test_script;
             const pythonTestScript = scriptField.replace('{STUDENT_CODE}', indentedStudentCode);
 
             try {
+                // 執行老師寫的評分腳本
                 let result = await pyodide.runPythonAsync(pythonTestScript);
                 let passed = 0, total = 1, score = 0;
 
+                // 雙重防呆相容舊版題庫
                 if (typeof result === 'string' && result.includes(',')) {
                     [passed, total, score] = result.split(',').map(Number);
                 } else {
@@ -634,7 +664,7 @@ builtins.input = custom_input
                     resultMsg.classList.add('text-green-600');
                 } else {
                     window.appendTerminal(`>>> 評分結果：失敗 ❌ (預估得分: ${score})`, true);
-                    resultMsg.innerText = `❌ 測試失敗 (通過 ${passed}/${total})。請檢查上方終端機的輸出是否與題目要求完全一致。`;
+                    resultMsg.innerText = `❌ 測試失敗 (通過 ${passed}/${total})。請檢查上方終端機的輸出是否符合預期。`;
                     resultMsg.classList.add('text-red-600');
                 }
             } catch (err) {
@@ -644,7 +674,7 @@ builtins.input = custom_input
                 resultMsg.innerText = "❌ 程式語法錯誤或執行失敗！";
             }
 
-            btn.innerText = "🔍 測試程式碼";
+            btn.innerText = "🔍 測試程式碼 (不計分)";
             btn.disabled = false;
         }
 
@@ -732,14 +762,14 @@ builtins.input = custom_input
         }
 
         // ==========================================
-        //  老師專區邏輯 (包含密碼 Hash 加密)
+        //  老師專區邏輯 (Hash 密碼保護)
         // ==========================================
         function showTeacherLogin() { document.getElementById('teacher-modal').classList.remove('hidden'); }
         function closeTeacherModal() { document.getElementById('teacher-modal').classList.add('hidden'); document.getElementById('teacher-pwd').value = ''; }
         
         async function verifyTeacher() {
             const pwd = document.getElementById('teacher-pwd').value;
-            // 使用 Hash 隱藏密碼 (KTSSS 的 Hash 值為 71848938)
+            // 71848938 是 KTSSS 的簡易 Hash 值。安全隱藏原始密碼。
             if (simpleHash(pwd) === 71848938) {
                 closeTeacherModal();
                 await loadDataAndRender();
@@ -831,6 +861,7 @@ builtins.input = custom_input
             document.getElementById('editor-form-title').innerText = "編輯題目";
             document.getElementById('new-prob-title').value = prob.title;
             document.getElementById('new-prob-desc').value = prob.desc || prob.description;
+            document.getElementById('new-prob-expected').value = prob.expected_output || '';
             teacherDefaultEditor.setValue(prob.defaultCode || "# 在這裡寫下你的程式碼\n", -1);
             teacherTestEditor.setValue(prob.testScript || prob.test_script, -1);
             
@@ -845,6 +876,7 @@ builtins.input = custom_input
             document.getElementById('editor-form-title').innerText = "新增題目";
             document.getElementById('new-prob-title').value = '';
             document.getElementById('new-prob-desc').value = '';
+            document.getElementById('new-prob-expected').value = '';
             teacherDefaultEditor.setValue("# 在這裡寫下你的程式碼\n", -1);
             teacherTestEditor.setValue(defaultBeginnerTestScript, -1);
             
@@ -855,6 +887,7 @@ builtins.input = custom_input
         async function saveProblem() {
             const title = document.getElementById('new-prob-title').value.trim();
             const desc = document.getElementById('new-prob-desc').value.trim();
+            const expected_output = document.getElementById('new-prob-expected').value.trim();
             const defaultCode = teacherDefaultEditor.getValue();
             const testScript = teacherTestEditor.getValue();
 
@@ -864,7 +897,7 @@ builtins.input = custom_input
             }
 
             const pId = editingProblemId ? editingProblemId : 'prob_' + Date.now();
-            dbProblems[pId] = { title, desc, defaultCode, testScript };
+            dbProblems[pId] = { title, desc, expected_output, defaultCode, testScript };
 
             await fetch(`${FIREBASE_BASE_URL}/problems/${pId}.json`, { method: 'PUT', body: JSON.stringify(dbProblems[pId]) });
 
@@ -996,6 +1029,7 @@ builtins.input = custom_input
                 {
                     "title": "批次匯入範例題 1 (加法)",
                     "desc": "請撰寫程式印出 5 + 3 的結果",
+                    "expected_output": "8",
                     "defaultCode": "# 在這裡寫下你的程式碼\n",
                     "testScript": "import sys\nimport io\n\ncaptured_output = io.StringIO()\nsys.stdout = captured_output\n\ntry:\n{STUDENT_CODE}\nexcept Exception:\n    pass\n\nsys.stdout = sys.__stdout__\nstudent_output = captured_output.getvalue().strip()\n\npassed = 1 if str(student_output) == '8' else 0\nscore = 100 if passed else 0\n\nf'{passed},1,{score}'"
                 }
@@ -1034,6 +1068,8 @@ builtins.input = custom_input
                         if (prob.title && probDesc && probScript && probScript.includes('{STUDENT_CODE}')) {
                             prob.desc = probDesc; 
                             prob.testScript = probScript; 
+                            // 保留可能有的 expected_output
+                            prob.expected_output = prob.expected_output || "";
                             prob.defaultCode = prob.defaultCode || "# 在這裡寫下你的程式碼\n";
                             
                             const pId = 'prob_' + Date.now() + '_' + index; 
