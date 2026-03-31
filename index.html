@@ -114,8 +114,8 @@
                 
                 <div class="mt-6 flex flex-col md:flex-row justify-between items-center space-y-3 md:space-y-0">
                     <div class="space-x-2 flex w-full md:w-auto">
-                        <button id="test-btn" onclick="testCode()" class="flex-1 md:flex-none bg-gray-600 text-white px-6 py-2 rounded-md hover:bg-gray-700 transition font-bold shadow-sm" title="自由執行程式，支援手動輸入">🔍 測試程式碼</button>
-                        <button id="submit-btn" onclick="submitCode()" class="flex-1 md:flex-none bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 transition font-bold shadow-sm" title="提交給系統自動帶入隱藏測資並評分">🚀 正式遞交</button>
+                        <button id="test-btn" onclick="testCode()" class="flex-1 md:flex-none bg-gray-600 text-white px-6 py-2 rounded-md hover:bg-gray-700 transition font-bold shadow-sm" title="自由執行程式，支援手動彈出視窗輸入">🔍 測試程式碼</button>
+                        <button id="submit-btn" onclick="submitCode()" class="flex-1 md:flex-none bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 transition font-bold shadow-sm" title="提交給系統自動帶入測資並評分">🚀 正式遞交</button>
                     </div>
                     <div id="result-message" class="font-bold text-lg hidden text-center md:text-right w-full md:w-auto"></div>
                 </div>
@@ -217,8 +217,8 @@
                             <div id="teacher-default-editor" class="w-full h-32 border border-gray-300"></div>
                         </div>
                         <div>
-                            <label class="block font-bold mb-1">測試腳本 (Python) - 評分核心 (防作弊多重測試版)</label>
-                            <p class="text-xs text-gray-500 mb-1">請在 <code>test_cases</code> 中設置多組隱藏測資以防止學生 Hardcode。執行後必須回傳 <code>f"{passed},{total},{score}"</code>。</p>
+                            <label class="block font-bold mb-1">測試腳本 (Python) - 評分核心 (穩定單次比對版)</label>
+                            <p class="text-xs text-gray-500 mb-1">請確保腳本最後回傳 <code>f"{passed},1,{score}"</code>。如需輸入，請填入 <code>input_values</code> 陣列。</p>
                             <div id="teacher-test-editor" class="w-full h-64 border border-gray-300"></div>
                         </div>
                         <div class="flex space-x-2">
@@ -251,7 +251,7 @@
     </main>
 
     <div class="fixed bottom-2 right-4 text-xs text-gray-400 font-mono font-bold">
-        lwh 2026/03/31 12:05
+        lwh20260331_v3_stable
     </div>
 
     <div id="teacher-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -303,7 +303,7 @@
 
         let studentEditor, teacherDefaultEditor, teacherTestEditor;
 
-        // 【新增】主題切換器
+        // 主題切換器
         function toggleTheme() {
             document.body.classList.toggle('dark-mode');
             const btn = document.getElementById('theme-toggle-btn');
@@ -317,7 +317,7 @@
         }
         if(localStorage.getItem('theme') === 'dark') toggleTheme();
 
-        // 【修改】時間格式化 Helper (YYYY/MM/DD HH:MM:SS)
+        // 時間格式化 Helper (YYYY/MM/DD HH:MM:SS)
         function getFormattedTime() {
             const d = new Date();
             const pad = (n) => n.toString().padStart(2, '0');
@@ -346,8 +346,8 @@
             return hash;
         }
 
-        // 【修改】強化的反作弊測試腳本 (多重測試案例版)
-        const defaultBeginnerTestScript = `import sys\nimport io\nimport js\n\n# 隱藏測試案例：[(輸入列表), 預期輸出字串]\n# 系統會自動將每個案例的輸入數據注入到 input() 中\ntest_cases = [\n    (["5"], "10"),\n    (["0"], "0")\n]\n\npassed = 0\ntotal = len(test_cases)\n\nfor inputs, expected in test_cases:\n    js.window.autoInputs = inputs.copy() # 將測試數據送入 JavaScript 環境\n    \n    captured_output = io.StringIO()\n    sys.stdout = captured_output\n    \n    try:\n        # 使用 exec 在獨立命名空間執行學生的程式碼\n        student_namespace = {}\n        exec("""{STUDENT_CODE}""", student_namespace)\n    except Exception as e:\n        pass\n        \n    sys.stdout = sys.__stdout__\n    student_output = captured_output.getvalue().strip()\n    \n    # 驗證該次測試的輸出是否與預期相符\n    if str(student_output) == str(expected).strip():\n        passed += 1\n\nscore = int((passed / total) * 100)\nf"{passed},{total},{score}"`;
+        // 回復為穩定且單純的字串比對腳本模板
+        const defaultBeginnerTestScript = `import sys\nimport io\nimport builtins\n\n# 若需要輸入數據，請填入此陣列中，例如 ["Apple", "Banana"]\ninput_values = []\n\noriginal_input = builtins.input\ndef mock_input(prompt=""):\n    sys.stdout.write(prompt)\n    val = input_values.pop(0) if input_values else ""\n    sys.stdout.write(val + "\\n")\n    return val\n\nbuiltins.input = mock_input\ncaptured_output = io.StringIO()\nsys.stdout = captured_output\n\ntry:\n{STUDENT_CODE}\nexcept Exception:\n    pass\n\nsys.stdout = sys.__stdout__\nbuiltins.input = original_input # 確保還原 input 功能\n\nstudent_output = captured_output.getvalue().strip()\nexpected_answer = """請在此輸入預期輸出"""\n\npassed = 1 if str(student_output) == str(expected_answer).strip() else 0\nscore = 100 if passed else 0\n\nf"{passed},1,{score}"`;
 
         function initEditors() {
             const editorSettings = { mode: "ace/mode/python", theme: "ace/theme/monokai", fontSize: "14px", showPrintMargin: false, enableBasicAutocompletion: true, enableLiveAutocompletion: true };
@@ -370,25 +370,16 @@
                 });
                 pyodide = pyodideInstance;
 
-                // 【修改】分離手動輸入與自動輸入的 input 邏輯
+                // 初始化最純粹的彈出視窗 input 邏輯 (供測試模式使用)
                 await pyodide.runPythonAsync(`
 import builtins
 import js
 
 def custom_input(prompt_text=""):
-    # 若在遞交評分模式下
-    if getattr(js.window, 'isAutoGrading', False):
-        if hasattr(js.window, 'autoInputs') and len(js.window.autoInputs) > 0:
-            val = js.window.autoInputs.pop(0)
-            js.window.appendTerminal(str(prompt_text) + str(val) + " (系統自動輸入)", False)
-            return str(val)
-        return "0"
-    else:
-        # 手動測試模式下，彈出輸入框
-        res = js.prompt(prompt_text)
-        if res is None: res = ""
-        js.window.appendTerminal(str(prompt_text) + str(res), False)
-        return res
+    res = js.prompt(prompt_text)
+    if res is None: res = ""
+    js.window.appendTerminal(str(prompt_text) + str(res), False)
+    return res
 
 builtins.input = custom_input
                 `);
@@ -551,7 +542,7 @@ builtins.input = custom_input
             if (cooldownTimer) { clearTimeout(cooldownTimer); cooldownTimer = null; }
             if (sub && sub.lastSubmitTimestamp) {
                 const diff = Date.now() - sub.lastSubmitTimestamp;
-                // 【修改】冷卻時間降為 30 秒
+                // 30 秒冷卻時間
                 if (diff < 30000) { 
                     btn.disabled = true; btn.classList.add('opacity-50', 'cursor-not-allowed');
                     btn.innerText = `冷卻中 (${Math.ceil((30000 - diff)/1000)}s)`;
@@ -563,7 +554,7 @@ builtins.input = custom_input
             btn.innerText = "🚀 正式遞交"; countSpan.innerText = `總遞交次數：${sub ? (sub.attempts || 0) : 0}`;
         }
 
-        // 【修改】測試模式：允許手動輸入，且不進行評分計算
+        // 自由測試模式 (支援手動 input 彈出視窗)
         async function testCode() {
             const btn = document.getElementById('test-btn');
             const resultMsg = document.getElementById('result-message');
@@ -571,14 +562,12 @@ builtins.input = custom_input
 
             btn.disabled = true; btn.innerText = "執行中..."; resultMsg.classList.add('hidden');
             clearTerminal(); window.appendTerminal(">>> 測試模式：可手動輸入數據進行測試...\n", false);
-            
-            window.isAutoGrading = false; // 關閉自動評分模式，開啟手動 prompt
 
             try {
-                // 直接執行學生的原始碼，不包裝評分腳本
+                // 直接執行學生的原始碼
                 await pyodide.runPythonAsync(studentCode);
                 window.appendTerminal("\n>>> 程式執行完畢。", false);
-                resultMsg.innerText = "ℹ️ 請確認輸出無誤，點擊「正式遞交」進行評分。";
+                resultMsg.innerText = "ℹ️ 程式執行結束。請確認終端機輸出是否符合你的預期。若確認無誤，請點擊「正式遞交」進行評分。";
                 resultMsg.classList.remove('hidden', 'text-red-600', 'text-green-600');
                 resultMsg.classList.add('text-blue-600');
             } catch (err) {
@@ -590,7 +579,7 @@ builtins.input = custom_input
             btn.innerText = "🔍 測試程式碼"; btn.disabled = false;
         }
 
-        // 【修改】遞交模式：使用評分腳本進行多重隱藏測試
+        // 遞交模式 (執行老師設計的自動評分腳本)
         async function submitCode() {
             const btn = document.getElementById('submit-btn');
             const resultMsg = document.getElementById('result-message');
@@ -599,9 +588,7 @@ builtins.input = custom_input
             const prob = dbProblems[currentProblemId];
 
             btn.disabled = true; btn.innerText = "遞交中..."; resultMsg.classList.add('hidden');
-            clearTerminal(); window.appendTerminal(">>> 正式遞交：系統執行隱藏測試與評分中...\n", false);
-
-            window.isAutoGrading = true; // 開啟自動模式，讓 python 的 input 自動抓取測試資料
+            clearTerminal(); window.appendTerminal(">>> 正式遞交：系統自動評分中...\n", false);
             
             const indentedStudentCode = studentCode.split('\n').map(line => '    ' + line).join('\n');
             const scriptField = prob.testScript || prob.test_script;
@@ -621,7 +608,7 @@ builtins.input = custom_input
             }
 
             const currentTimestamp = Date.now();
-            const currentTimeStr = getFormattedTime(); // 套用新版 YYYY/MM/DD 格式
+            const currentTimeStr = getFormattedTime(); // YYYY/MM/DD 格式
             const awaySeconds = Math.floor(totalAwayTime / 1000);
 
             if (!dbSubmissions[subKey]) dbSubmissions[subKey] = { cls: currentUser.cls, sid: currentUser.sid, name: currentUser.name, pId: currentProblemId, maxScore: 0, attempts: 0, history: [] };
@@ -638,7 +625,7 @@ builtins.input = custom_input
                 if (isError) {
                     resultMsg.innerText = "❌ 程式無法運行，但已將錯誤程式碼強制遞交供老師檢查。得分：0"; resultMsg.classList.add('text-red-600');
                 } else if (score === 100) {
-                    window.appendTerminal("\n>>> 成績紀錄成功！全部隱藏測試通過 ✅", false);
+                    window.appendTerminal("\n>>> 成績紀錄成功！測試通過 ✅", false);
                     resultMsg.innerText = "✅ 遞交成功，答案正確！得分：100"; resultMsg.classList.add('text-green-600');
                 } else {
                     window.appendTerminal(`\n>>> 紀錄完畢。得分：${score} ❌`, true);
@@ -677,12 +664,10 @@ builtins.input = custom_input
         }
         function closeCodeModal() { document.getElementById('code-modal').classList.add('hidden'); currentViewingSub = null; }
 
-        // 【修改】驗證老師專區密碼（支援修改）
         async function verifyTeacher() {
             const pwd = document.getElementById('teacher-pwd').value;
             const hashedInput = simpleHash(pwd);
             
-            // 嘗試從 Firebase 讀取自訂密碼設定，若無則回傳預設的 hash (123456 的 hash 是 71848938)
             let settings = await fetch(`${FIREBASE_BASE_URL}/settings.json`).then(r => r.json());
             let storedHash = (settings && settings.adminPassword) ? settings.adminPassword : 71848938; 
 
@@ -691,7 +676,6 @@ builtins.input = custom_input
             } else alert('密碼錯誤');
         }
 
-        // 【新增】修改老師專區密碼
         async function changeAdminPassword() {
             const newPwd = prompt("請輸入新的「老師專區管理密碼」：");
             if (!newPwd) return;
@@ -823,7 +807,7 @@ builtins.input = custom_input
         async function clearSubmissions() { if(confirm('確定要清除所有學生成績嗎？此操作無法復原！')) { dbSubmissions = {}; await fetch(`${FIREBASE_BASE_URL}/submissions.json`, { method: 'DELETE' }); renderTeacherTable(); } }
 
         function downloadJSONTemplate() {
-            const template = [{ "title": "加法運算 (防作弊範例)", "desc": "請寫一個程式，讀取兩個數字並印出它們的總和。", "expected_output": "15", "defaultCode": "a = int(input())\nb = int(input())\n# 在這裡寫下你的程式碼\n", "testScript": defaultBeginnerTestScript }];
+            const template = [{ "title": "加法運算 (基礎單次比對)", "desc": "請寫一個程式，印出 10 加 5 的結果。", "expected_output": "15", "defaultCode": "a = 10\nb = 5\n# 在這裡寫下你的程式碼\n", "testScript": defaultBeginnerTestScript }];
             const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(template, null, 4));
             const downloadAnchorNode = document.createElement('a'); downloadAnchorNode.setAttribute("href", dataStr); downloadAnchorNode.setAttribute("download", "problem_template.json");
             document.body.appendChild(downloadAnchorNode); downloadAnchorNode.click(); downloadAnchorNode.remove();
