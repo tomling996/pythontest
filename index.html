@@ -211,7 +211,6 @@
                         
                         <div>
                             <label class="block font-bold mb-1">預期輸出範例 (可選)</label>
-                            <p class="text-xs text-gray-500 mb-1">若填寫，系統會自動帶入下方腳本的 <code>{EXPECTED_OUTPUT}</code> 進行防失誤的逐行精確比對。</p>
                             <textarea id="new-prob-expected" class="w-full border p-2 rounded h-16 font-mono text-sm"></textarea>
                         </div>
 
@@ -220,8 +219,7 @@
                             <div id="teacher-default-editor" class="w-full h-32 border border-gray-300"></div>
                         </div>
                         <div>
-                            <label class="block font-bold mb-1">測試腳本 (Python) - 終極穩定評分版</label>
-                            <p class="text-xs text-gray-500 mb-1">腳本已升級為「逐行無空白」比對法，100% 防止學生因多餘空白或換行符號導致 0 分。</p>
+                            <label class="block font-bold mb-1">測試腳本 (Python)</label>
                             <div id="teacher-test-editor" class="w-full h-64 border border-gray-300"></div>
                         </div>
                         <div class="flex space-x-2">
@@ -285,8 +283,7 @@
     </div>
 
     <script>
-        // ！！！請修改這裡！！！
-        // 1. 填寫你的 Firebase 專案設定 (在 Firebase Console -> Project Settings -> General 找到)
+
         const firebaseConfig = {
             apiKey: "AIzaSyB9cGjv2N8cfxO1ZYTHmN4spz8qvq0_tOY",
             authDomain: "ktsssprogram.firebaseapp.com",
@@ -297,10 +294,9 @@
             appId: "1:322669271891:web:4d3747ead355842e661fa6"
         };
         
-        // 2. 填寫唯一允許登入後台的老師 Google 信箱 (我幫您填上您剛剛提供的信箱了)
+
         const ALLOWED_TEACHER_EMAIL = "tomling996@gmail.com";
 
-        // 初始化 Firebase
         firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
         const provider = new firebase.auth.GoogleAuthProvider();
@@ -360,9 +356,7 @@
             document.getElementById('terminal-output').innerHTML = '';
         }
 
-        // ==========================================
-        // 終極防誤判測試腳本 (採用逐行精確去空白比對)
-        // ==========================================
+
         const defaultBeginnerTestScript = `import sys\nimport io\nimport builtins\n\n# 若需要輸入數據，請填入此陣列中，例如 ["Apple", "Banana"]\ninput_values = []\n\noriginal_input = builtins.input\ndef mock_input(prompt=""):\n    sys.stdout.write(prompt)\n    val = input_values.pop(0) if input_values else ""\n    sys.stdout.write(str(val) + "\\n")\n    return val\n\nbuiltins.input = mock_input\ncaptured_output = io.StringIO()\nsys.stdout = captured_output\n\ntry:\n    # 使用 exec 執行，避免 JSON 腳本注入時的縮排錯誤\n    exec("""{STUDENT_CODE}""", globals())\nexcept Exception:\n    pass\n\nsys.stdout = sys.__stdout__\nbuiltins.input = original_input\n\nstudent_out = captured_output.getvalue()\nexpected_out = """{EXPECTED_OUTPUT}"""\n\n# 終極比對法：逐行去除頭尾空白，完全無視換行符號與結尾空格的差異\nout_lines = [line.strip() for line in student_out.splitlines() if line.strip() != ""]\nexp_lines = [line.strip() for line in expected_out.splitlines() if line.strip() != ""]\n\npassed = 1 if out_lines == exp_lines else 0\nscore = 100 if passed else 0\n\nf"{passed},1,{score}"`;
 
         function initEditors() {
