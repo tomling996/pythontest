@@ -251,7 +251,7 @@
     </main>
 
     <div class="fixed bottom-2 right-4 text-xs text-gray-400 font-mono font-bold">
-        lwh2026_Final_Stable
+        lwh 31/3/2026 14:03
     </div>
 
     <div id="teacher-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -574,7 +574,7 @@ builtins.input = custom_input
             try {
                 await pyodide.runPythonAsync(studentCode);
                 window.appendTerminal("\n>>> 程式執行完畢。", false);
-                resultMsg.innerText = "ℹ️ 程式執行結束。請確認終端機輸出是否符合預期。若確認無誤，請點擊「正式遞交」上傳。";
+                resultMsg.innerText = "ℹ️ 若確認無誤，請點擊「正式遞交」上傳。";
                 resultMsg.classList.remove('hidden', 'text-red-600', 'text-green-600');
                 resultMsg.classList.add('text-blue-600');
             } catch (err) {
