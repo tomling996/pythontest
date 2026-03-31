@@ -217,7 +217,7 @@
                             <div id="teacher-default-editor" class="w-full h-32 border border-gray-300"></div>
                         </div>
                         <div>
-                            <label class="block font-bold mb-1">測試腳本 (Python) - 評分核心</label>
+                            <label class="block font-bold mb-1">測試腳本 (Python) - 評分核心 (穩定單次比對版)</label>
                             <p class="text-xs text-gray-500 mb-1">請確保腳本最後回傳 <code>f"{passed},1,{score}"</code>。如需輸入，請填入 <code>input_values</code> 陣列。</p>
                             <div id="teacher-test-editor" class="w-full h-64 border border-gray-300"></div>
                         </div>
@@ -251,7 +251,7 @@
     </main>
 
     <div class="fixed bottom-2 right-4 text-xs text-gray-400 font-mono font-bold">
-        lwh20260331_v3.1_stable
+        lwh20260331_v3.2_stable
     </div>
 
     <div id="teacher-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -276,7 +276,6 @@
                 <select id="history-selector" class="w-full border border-gray-300 p-2 rounded mt-1 bg-gray-50 font-mono text-sm" onchange="renderSelectedHistory()"></select>
             </div>
             <pre id="code-modal-content" class="bg-gray-800 text-green-400 p-4 rounded border font-mono text-sm overflow-x-auto max-h-80 whitespace-pre-wrap"></pre>
-            <pre id="code-modal-error" class="hidden text-red-400 bg-gray-900 p-3 mt-2 rounded border border-red-800 font-mono text-xs overflow-x-auto max-h-32 whitespace-pre-wrap"></pre>
             <div class="mt-4 flex justify-end">
                 <button onclick="closeCodeModal()" class="bg-gray-200 text-gray-800 px-4 py-2 rounded font-bold hover:bg-gray-300">關閉</button>
             </div>
@@ -582,7 +581,7 @@ builtins.input = custom_input
             btn.innerText = "🔍 測試程式碼"; btn.disabled = false;
         }
 
-        // 遞交模式 (執行老師設計的自動評分腳本)
+        // 遞交模式 (完全隱藏評分細節與錯誤，只進行成績結算與上傳)
         async function submitCode() {
             const btn = document.getElementById('submit-btn');
             const resultMsg = document.getElementById('result-message');
@@ -591,26 +590,30 @@ builtins.input = custom_input
             const prob = dbProblems[currentProblemId];
 
             btn.disabled = true; btn.innerText = "遞交中..."; resultMsg.classList.add('hidden');
-            clearTerminal(); window.appendTerminal(">>> 正式遞交：系統紀錄與處理中...\n", false);
+            clearTerminal(); window.appendTerminal(">>> 系統紀錄與處理中...\n", false);
             
-            // 修復防護：避免純註解或空行導致 try 區塊引發 SyntaxError
+            // 強制加上 pass 避免 try 區塊內出現空白或縮排錯誤導致 SyntaxError
             let indentedStudentCode = studentCode.split('\n').map(line => '    ' + line).join('\n');
-            indentedStudentCode += '\n    pass'; // 強制加入 pass 確保縮排合法
+            indentedStudentCode += '\n    pass';
 
             const scriptField = prob.testScript || prob.test_script;
             const pythonTestScript = scriptField.replace('{STUDENT_CODE}', indentedStudentCode);
 
-            let score = 0, passed = 0, total = 1; let isError = false; let errorMsg = "";
+            let score = 0, passed = 0, total = 1;
 
             try {
+                // 獨立執行評分，隱藏任何執行錯誤
                 let result = await pyodide.runPythonAsync(pythonTestScript);
                 if (typeof result === 'string' && result.includes(',')) {
                     [passed, total, score] = result.split(',').map(Number);
-                } else { passed = pyodide.globals.get('passed') || 0; score = pyodide.globals.get('score') || 0; total = 1; }
+                } else { 
+                    passed = pyodide.globals.get('passed') || 0; 
+                    score = pyodide.globals.get('score') || 0; 
+                    total = 1; 
+                }
             } catch (err) {
-                console.error(err);
-                window.appendTerminal("\n>>> 系統執行發生錯誤！此錯誤紀錄將強制上傳供老師檢視。\n" + err.toString(), true);
-                isError = true; errorMsg = err.toString(); score = 0; 
+                // 捕捉到錯誤時完全不做顯示，單純判定該次評分為 0
+                score = 0;
             }
 
             const currentTimestamp = Date.now();
@@ -620,53 +623,73 @@ builtins.input = custom_input
             if (!dbSubmissions[subKey]) dbSubmissions[subKey] = { cls: currentUser.cls, sid: currentUser.sid, name: currentUser.name, pId: currentProblemId, maxScore: 0, attempts: 0, history: [] };
             if (!dbSubmissions[subKey].history) dbSubmissions[subKey].history = [];
 
-            dbSubmissions[subKey].history.push({ time: currentTimeStr, code: studentCode, score: score, error: isError ? errorMsg : null });
-            dbSubmissions[subKey].attempts += 1; dbSubmissions[subKey].lastSubmitTime = currentTimeStr; dbSubmissions[subKey].lastSubmitTimestamp = currentTimestamp;
-            dbSubmissions[subKey].awayTime = awaySeconds; dbSubmissions[subKey].code = studentCode;
-            if (!isError && score > (dbSubmissions[subKey].maxScore || 0)) dbSubmissions[subKey].maxScore = score;
+            // 將成績與程式碼存入紀錄中，不再上傳錯誤訊息
+            dbSubmissions[subKey].history.push({ time: currentTimeStr, code: studentCode, score: score });
+            dbSubmissions[subKey].attempts += 1; 
+            dbSubmissions[subKey].lastSubmitTime = currentTimeStr; 
+            dbSubmissions[subKey].lastSubmitTimestamp = currentTimestamp;
+            dbSubmissions[subKey].awayTime = awaySeconds; 
+            dbSubmissions[subKey].code = studentCode;
+            
+            // 更新最高分
+            if (score > (dbSubmissions[subKey].maxScore || 0)) {
+                dbSubmissions[subKey].maxScore = score;
+            }
             
             try {
                 await fetch(`${FIREBASE_BASE_URL}/submissions/${subKey}.json`, { method: 'PUT', body: JSON.stringify(dbSubmissions[subKey]) });
-                resultMsg.classList.remove('hidden', 'text-red-600', 'text-green-600', 'text-blue-600');
-                if (isError) {
-                    resultMsg.innerText = "❌ 程式無法運行（包含錯誤），但已將程式碼強制遞交供老師檢查。"; 
-                    resultMsg.classList.add('text-red-600');
-                } else {
-                    window.appendTerminal("\n>>> 遞交程序完成。系統已紀錄你的最新程式碼！", false);
-                    resultMsg.innerText = "✅ 遞交成功！你的程式碼已送出。"; 
-                    resultMsg.classList.add('text-green-600');
-                }
+                
+                // 隱藏分數細節，只給予成功回饋
+                window.appendTerminal(">>> 遞交程序完成。系統已紀錄你的最新程式碼！", false);
+                resultMsg.innerText = "✅ 遞交成功！你的程式碼已送出。"; 
+                resultMsg.classList.remove('hidden', 'text-red-600', 'text-blue-600');
+                resultMsg.classList.add('text-green-600');
+
             } catch (networkErr) {
-                resultMsg.innerText = "❌ 網路問題導致成績上傳失敗，請檢查網路狀態。";
-                resultMsg.classList.remove('hidden', 'text-green-600', 'text-blue-600'); resultMsg.classList.add('text-red-600');
+                resultMsg.innerText = "❌ 網路問題導致上傳失敗，請檢查網路狀態。";
+                resultMsg.classList.remove('hidden', 'text-green-600', 'text-blue-600'); 
+                resultMsg.classList.add('text-red-600');
             }
+            
             updateSubmitStatus();
         }
 
         function showTeacherLogin() { document.getElementById('teacher-modal').classList.remove('hidden'); }
         function closeTeacherModal() { document.getElementById('teacher-modal').classList.add('hidden'); document.getElementById('teacher-pwd').value = ''; }
         
+        // 教師端：簡化歷史紀錄查看介面，僅顯示時間、分數與程式碼
         function showCodeModal(subKey) {
             const sub = dbSubmissions[subKey]; if (!sub) return; currentViewingSub = sub;
             const probTitle = dbProblems[sub.pId] ? dbProblems[sub.pId].title : '未知題目';
             document.getElementById('code-modal-title').innerText = `${sub.cls}班 ${sub.sid}號 - ${probTitle}`;
+            
             const selector = document.getElementById('history-selector'); selector.innerHTML = '';
             if (sub.history && sub.history.length > 0) {
                 sub.history.forEach((h, idx) => {
-                    const opt = document.createElement('option'); opt.value = idx; opt.text = `[${h.time}] 得分: ${h.score} ${h.error ? '(⚠️包含錯誤)' : ''}`; selector.appendChild(opt);
+                    const opt = document.createElement('option'); opt.value = idx; 
+                    opt.text = `[${h.time}] 得分: ${h.score}`; 
+                    selector.appendChild(opt);
                 }); selector.value = sub.history.length - 1; 
             } else selector.innerHTML = '<option value="-1">無歷史紀錄 (或舊版資料)</option>';
-            renderSelectedHistory(); document.getElementById('code-modal').classList.remove('hidden');
+            
+            renderSelectedHistory(); 
+            document.getElementById('code-modal').classList.remove('hidden');
         }
 
         function renderSelectedHistory() {
             if (!currentViewingSub) return;
-            const selector = document.getElementById('history-selector'); const content = document.getElementById('code-modal-content'); const errorEl = document.getElementById('code-modal-error');
-            if (selector.value === "-1" || !currentViewingSub.history) { content.innerText = currentViewingSub.code || '無程式碼記錄。'; errorEl.classList.add('hidden'); return; }
+            const selector = document.getElementById('history-selector'); 
+            const content = document.getElementById('code-modal-content'); 
+            
+            if (selector.value === "-1" || !currentViewingSub.history) { 
+                content.innerText = currentViewingSub.code || '無程式碼記錄。'; 
+                return; 
+            }
+            
             const h = currentViewingSub.history[selector.value];
             content.innerText = h.code || '無程式碼記錄。';
-            if (h.error) { errorEl.innerText = "【錯誤訊息 (學生無法運行)】\n" + h.error; errorEl.classList.remove('hidden'); } else errorEl.classList.add('hidden');
         }
+
         function closeCodeModal() { document.getElementById('code-modal').classList.add('hidden'); currentViewingSub = null; }
 
         async function verifyTeacher() {
