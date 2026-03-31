@@ -208,7 +208,7 @@
                         
                         <div>
                             <label class="block font-bold mb-1">預期輸出範例 (可選)</label>
-                            <p class="text-xs text-gray-500 mb-1">若填寫，學生介面將會顯示此預期結果供參考。</p>
+                            <p class="text-xs text-gray-500 mb-1">若填寫，學生介面將會顯示此預期結果供參考，且系統會自動帶入下方腳本的 <code>{EXPECTED_OUTPUT}</code> 進行比對。</p>
                             <textarea id="new-prob-expected" class="w-full border p-2 rounded h-16 font-mono text-sm"></textarea>
                         </div>
 
@@ -218,7 +218,7 @@
                         </div>
                         <div>
                             <label class="block font-bold mb-1">測試腳本 (Python) - 評分核心 (穩定單次比對版)</label>
-                            <p class="text-xs text-gray-500 mb-1">請確保腳本最後回傳 <code>f"{passed},1,{score}"</code>。如需輸入，請填入 <code>input_values</code> 陣列。</p>
+                            <p class="text-xs text-gray-500 mb-1">請確保腳本包含 <code>{STUDENT_CODE}</code>，並使用 <code>{EXPECTED_OUTPUT}</code> 作為解答變數。</p>
                             <div id="teacher-test-editor" class="w-full h-64 border border-gray-300"></div>
                         </div>
                         <div class="flex space-x-2">
@@ -251,7 +251,7 @@
     </main>
 
     <div class="fixed bottom-2 right-4 text-xs text-gray-400 font-mono font-bold">
-        lwh20260331_v3.2_stable
+        lwh20260331_v3.3_stable
     </div>
 
     <div id="teacher-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -272,12 +272,12 @@
                 <button onclick="closeCodeModal()" class="text-gray-500 hover:text-red-500 font-bold text-xl">✖</button>
             </div>
             <div class="mb-3">
-                <label class="font-bold text-sm text-gray-700">選擇歷史遞交紀錄：</label>
-                <select id="history-selector" class="w-full border border-gray-300 p-2 rounded mt-1 bg-gray-50 font-mono text-sm" onchange="renderSelectedHistory()"></select>
+                <label class="font-bold text-sm text-gray-700 dark:text-gray-300">選擇歷史遞交紀錄：</label>
+                <select id="history-selector" class="w-full border border-gray-300 p-2 rounded mt-1 bg-gray-50 dark:bg-gray-700 dark:text-white font-mono text-sm" onchange="renderSelectedHistory()"></select>
             </div>
-            <pre id="code-modal-content" class="bg-gray-800 text-green-400 p-4 rounded border font-mono text-sm overflow-x-auto max-h-80 whitespace-pre-wrap"></pre>
-            <div class="mt-4 flex justify-end">
-                <button onclick="closeCodeModal()" class="bg-gray-200 text-gray-800 px-4 py-2 rounded font-bold hover:bg-gray-300">關閉</button>
+            <div id="code-modal-editor" class="w-full h-80 border border-gray-300 rounded mb-4"></div>
+            <div class="flex justify-end">
+                <button onclick="closeCodeModal()" class="bg-gray-200 text-gray-800 px-4 py-2 rounded font-bold hover:bg-gray-300 dark:text-gray-800">關閉</button>
             </div>
         </div>
     </div>
@@ -300,7 +300,7 @@
         let cooldownTimer = null;
         let currentViewingSub = null;
 
-        let studentEditor, teacherDefaultEditor, teacherTestEditor;
+        let studentEditor, teacherDefaultEditor, teacherTestEditor, teacherHistoryEditor;
 
         // 主題切換器
         function toggleTheme() {
@@ -316,7 +316,7 @@
         }
         if(localStorage.getItem('theme') === 'dark') toggleTheme();
 
-        // 時間格式化 Helper (YYYY/MM/DD HH:MM:SS)
+        // 時間格式化 Helper
         function getFormattedTime() {
             const d = new Date();
             const pad = (n) => n.toString().padStart(2, '0');
@@ -345,19 +345,25 @@
             return hash;
         }
 
-        // 回復為穩定且單純的字串比對腳本模板
-        const defaultBeginnerTestScript = `import sys\nimport io\nimport builtins\n\n# 若需要輸入數據，請填入此陣列中，例如 ["Apple", "Banana"]\ninput_values = []\n\noriginal_input = builtins.input\ndef mock_input(prompt=""):\n    sys.stdout.write(prompt)\n    val = input_values.pop(0) if input_values else ""\n    sys.stdout.write(val + "\\n")\n    return val\n\nbuiltins.input = mock_input\ncaptured_output = io.StringIO()\nsys.stdout = captured_output\n\ntry:\n{STUDENT_CODE}\nexcept Exception:\n    pass\n\nsys.stdout = sys.__stdout__\nbuiltins.input = original_input # 確保還原 input 功能\n\nstudent_output = captured_output.getvalue().strip()\nexpected_answer = """請在此輸入預期輸出"""\n\npassed = 1 if str(student_output) == str(expected_answer).strip() else 0\nscore = 100 if passed else 0\n\nf"{passed},1,{score}"`;
+        // 修改預設腳本：加入 {EXPECTED_OUTPUT} 動態替換變數
+        const defaultBeginnerTestScript = `import sys\nimport io\nimport builtins\n\n# 若需要輸入數據，請填入此陣列中，例如 ["Apple", "Banana"]\ninput_values = []\n\noriginal_input = builtins.input\ndef mock_input(prompt=""):\n    sys.stdout.write(prompt)\n    val = input_values.pop(0) if input_values else ""\n    sys.stdout.write(val + "\\n")\n    return val\n\nbuiltins.input = mock_input\ncaptured_output = io.StringIO()\nsys.stdout = captured_output\n\ntry:\n{STUDENT_CODE}\nexcept Exception:\n    pass\n\nsys.stdout = sys.__stdout__\nbuiltins.input = original_input # 確保還原 input 功能\n\nstudent_output = captured_output.getvalue().strip()\nexpected_answer = """{EXPECTED_OUTPUT}"""\n\npassed = 1 if str(student_output) == str(expected_answer).strip() else 0\nscore = 100 if passed else 0\n\nf"{passed},1,{score}"`;
 
         function initEditors() {
             const editorSettings = { mode: "ace/mode/python", theme: "ace/theme/monokai", fontSize: "14px", showPrintMargin: false, enableBasicAutocompletion: true, enableLiveAutocompletion: true };
             studentEditor = ace.edit("student-editor");
             studentEditor.setOptions(editorSettings);
+            
             teacherDefaultEditor = ace.edit("teacher-default-editor");
             teacherDefaultEditor.setOptions(editorSettings);
             teacherDefaultEditor.setValue("# 在這裡寫下你的程式碼\n", -1);
+            
             teacherTestEditor = ace.edit("teacher-test-editor");
             teacherTestEditor.setOptions(editorSettings);
             teacherTestEditor.setValue(defaultBeginnerTestScript, -1);
+
+            // 教師端歷史紀錄唯讀 Editor 初始化
+            teacherHistoryEditor = ace.edit("code-modal-editor");
+            teacherHistoryEditor.setOptions({ ...editorSettings, readOnly: true, highlightActiveLine: false, highlightGutterLine: false });
         }
 
         async function init() {
@@ -369,7 +375,7 @@
                 });
                 pyodide = pyodideInstance;
 
-                // 初始化最純粹的彈出視窗 input 邏輯 (供測試模式使用)
+                // 初始化最純粹的彈出視窗 input 邏輯
                 await pyodide.runPythonAsync(`
 import builtins
 import js
@@ -513,7 +519,6 @@ builtins.input = custom_input
                 if (searchKw && !searchTarget.toLowerCase().includes(searchKw)) return;
                 const subKey = `${currentUser.key}_${prob.pId}`; const sub = dbSubmissions[subKey];
                 
-                // 隱藏具體分數，只顯示是否作答
                 const scoreText = sub && sub.attempts > 0 ? '✅ 已遞交' : '尚未作答';
                 const scoreColor = sub && sub.attempts > 0 ? 'text-green-600' : 'text-gray-500';
                 
@@ -544,7 +549,6 @@ builtins.input = custom_input
             if (cooldownTimer) { clearTimeout(cooldownTimer); cooldownTimer = null; }
             if (sub && sub.lastSubmitTimestamp) {
                 const diff = Date.now() - sub.lastSubmitTimestamp;
-                // 30 秒冷卻時間
                 if (diff < 30000) { 
                     btn.disabled = true; btn.classList.add('opacity-50', 'cursor-not-allowed');
                     btn.innerText = `冷卻中 (${Math.ceil((30000 - diff)/1000)}s)`;
@@ -556,7 +560,6 @@ builtins.input = custom_input
             btn.innerText = "🚀 正式遞交"; countSpan.innerText = `總遞交次數：${sub ? (sub.attempts || 0) : 0}`;
         }
 
-        // 自由測試模式 (支援手動 input 彈出視窗)
         async function testCode() {
             const btn = document.getElementById('test-btn');
             const resultMsg = document.getElementById('result-message');
@@ -566,7 +569,6 @@ builtins.input = custom_input
             clearTerminal(); window.appendTerminal(">>> 測試模式：可手動輸入數據進行測試...\n", false);
 
             try {
-                // 直接執行學生的原始碼
                 await pyodide.runPythonAsync(studentCode);
                 window.appendTerminal("\n>>> 程式執行完畢。", false);
                 resultMsg.innerText = "ℹ️ 程式執行結束。請確認終端機輸出是否符合預期。若確認無誤，請點擊「正式遞交」上傳。";
@@ -581,7 +583,6 @@ builtins.input = custom_input
             btn.innerText = "🔍 測試程式碼"; btn.disabled = false;
         }
 
-        // 遞交模式 (完全隱藏評分細節與錯誤，只進行成績結算與上傳)
         async function submitCode() {
             const btn = document.getElementById('submit-btn');
             const resultMsg = document.getElementById('result-message');
@@ -592,17 +593,21 @@ builtins.input = custom_input
             btn.disabled = true; btn.innerText = "遞交中..."; resultMsg.classList.add('hidden');
             clearTerminal(); window.appendTerminal(">>> 系統紀錄與處理中...\n", false);
             
-            // 強制加上 pass 避免 try 區塊內出現空白或縮排錯誤導致 SyntaxError
             let indentedStudentCode = studentCode.split('\n').map(line => '    ' + line).join('\n');
             indentedStudentCode += '\n    pass';
 
             const scriptField = prob.testScript || prob.test_script;
-            const pythonTestScript = scriptField.replace('{STUDENT_CODE}', indentedStudentCode);
+            
+            // 將 {STUDENT_CODE} 與 {EXPECTED_OUTPUT} 動態取代進入腳本
+            let pythonTestScript = scriptField.replace('{STUDENT_CODE}', indentedStudentCode);
+            pythonTestScript = pythonTestScript.replace('{EXPECTED_OUTPUT}', prob.expected_output || "");
+            
+            // 為了向下相容舊有未修改腳本的題目
+            pythonTestScript = pythonTestScript.replace('請在此輸入預期輸出', prob.expected_output || "");
 
             let score = 0, passed = 0, total = 1;
 
             try {
-                // 獨立執行評分，隱藏任何執行錯誤
                 let result = await pyodide.runPythonAsync(pythonTestScript);
                 if (typeof result === 'string' && result.includes(',')) {
                     [passed, total, score] = result.split(',').map(Number);
@@ -612,18 +617,16 @@ builtins.input = custom_input
                     total = 1; 
                 }
             } catch (err) {
-                // 捕捉到錯誤時完全不做顯示，單純判定該次評分為 0
                 score = 0;
             }
 
             const currentTimestamp = Date.now();
-            const currentTimeStr = getFormattedTime(); // YYYY/MM/DD 格式
+            const currentTimeStr = getFormattedTime(); 
             const awaySeconds = Math.floor(totalAwayTime / 1000);
 
             if (!dbSubmissions[subKey]) dbSubmissions[subKey] = { cls: currentUser.cls, sid: currentUser.sid, name: currentUser.name, pId: currentProblemId, maxScore: 0, attempts: 0, history: [] };
             if (!dbSubmissions[subKey].history) dbSubmissions[subKey].history = [];
 
-            // 將成績與程式碼存入紀錄中，不再上傳錯誤訊息
             dbSubmissions[subKey].history.push({ time: currentTimeStr, code: studentCode, score: score });
             dbSubmissions[subKey].attempts += 1; 
             dbSubmissions[subKey].lastSubmitTime = currentTimeStr; 
@@ -631,15 +634,12 @@ builtins.input = custom_input
             dbSubmissions[subKey].awayTime = awaySeconds; 
             dbSubmissions[subKey].code = studentCode;
             
-            // 更新最高分
             if (score > (dbSubmissions[subKey].maxScore || 0)) {
                 dbSubmissions[subKey].maxScore = score;
             }
             
             try {
                 await fetch(`${FIREBASE_BASE_URL}/submissions/${subKey}.json`, { method: 'PUT', body: JSON.stringify(dbSubmissions[subKey]) });
-                
-                // 隱藏分數細節，只給予成功回饋
                 window.appendTerminal(">>> 遞交程序完成。系統已紀錄你的最新程式碼！", false);
                 resultMsg.innerText = "✅ 遞交成功！你的程式碼已送出。"; 
                 resultMsg.classList.remove('hidden', 'text-red-600', 'text-blue-600');
@@ -657,7 +657,6 @@ builtins.input = custom_input
         function showTeacherLogin() { document.getElementById('teacher-modal').classList.remove('hidden'); }
         function closeTeacherModal() { document.getElementById('teacher-modal').classList.add('hidden'); document.getElementById('teacher-pwd').value = ''; }
         
-        // 教師端：簡化歷史紀錄查看介面，僅顯示時間、分數與程式碼
         function showCodeModal(subKey) {
             const sub = dbSubmissions[subKey]; if (!sub) return; currentViewingSub = sub;
             const probTitle = dbProblems[sub.pId] ? dbProblems[sub.pId].title : '未知題目';
@@ -676,18 +675,18 @@ builtins.input = custom_input
             document.getElementById('code-modal').classList.remove('hidden');
         }
 
+        // 渲染選取的歷史記錄進入 Ace Editor 中
         function renderSelectedHistory() {
             if (!currentViewingSub) return;
             const selector = document.getElementById('history-selector'); 
-            const content = document.getElementById('code-modal-content'); 
             
             if (selector.value === "-1" || !currentViewingSub.history) { 
-                content.innerText = currentViewingSub.code || '無程式碼記錄。'; 
+                teacherHistoryEditor.setValue(currentViewingSub.code || '# 無程式碼記錄', -1); 
                 return; 
             }
             
             const h = currentViewingSub.history[selector.value];
-            content.innerText = h.code || '無程式碼記錄。';
+            teacherHistoryEditor.setValue(h.code || '# 無程式碼記錄', -1);
         }
 
         function closeCodeModal() { document.getElementById('code-modal').classList.add('hidden'); currentViewingSub = null; }
@@ -748,8 +747,8 @@ builtins.input = custom_input
             let subs = Object.values(dbSubmissions); if (filterPId !== 'all') subs = subs.filter(s => s.pId === filterPId);
             subs.sort((a, b) => { if (a.cls !== b.cls) return a.cls.localeCompare(b.cls); return a.sid.localeCompare(b.sid); }).forEach(s => {
                 const probTitle = dbProblems[s.pId] ? dbProblems[s.pId].title : '未知題目'; const timeText = s.lastSubmitTime || '--';
-                const statKey = `${s.cls}-${s.sid}`; let awaySec = s.awayTime || 0;
-                if (dbSessionStats[statKey] && dbSessionStats[statKey].awayTime !== undefined) awaySec = Math.floor(dbSessionStats[statKey].awayTime / 1000);
+                // 修正：完全依賴遞交紀錄內儲存的 s.awayTime 顯示，不再讀取即時 dbSessionStats
+                let awaySec = s.awayTime || 0; 
                 const currentSubKey = `${s.cls}-${s.sid}_${s.pId}`;
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
