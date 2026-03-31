@@ -115,7 +115,7 @@
                 <div class="mt-6 flex flex-col md:flex-row justify-between items-center space-y-3 md:space-y-0">
                     <div class="space-x-2 flex w-full md:w-auto">
                         <button id="test-btn" onclick="testCode()" class="flex-1 md:flex-none bg-gray-600 text-white px-6 py-2 rounded-md hover:bg-gray-700 transition font-bold shadow-sm" title="自由執行程式，支援手動彈出視窗輸入">🔍 測試程式碼</button>
-                        <button id="submit-btn" onclick="submitCode()" class="flex-1 md:flex-none bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 transition font-bold shadow-sm" title="提交給系統自動帶入測資並評分">🚀 正式遞交</button>
+                        <button id="submit-btn" onclick="submitCode()" class="flex-1 md:flex-none bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 transition font-bold shadow-sm" title="提交給系統自動紀錄與評分">🚀 正式遞交</button>
                     </div>
                     <div id="result-message" class="font-bold text-lg hidden text-center md:text-right w-full md:w-auto"></div>
                 </div>
@@ -169,7 +169,7 @@
                                 <th class="py-2 px-4 border-b text-left">班級</th>
                                 <th class="py-2 px-4 border-b text-left">學號</th>
                                 <th class="py-2 px-4 border-b text-left">題目</th>
-                                <th class="py-2 px-4 border-b text-left">最高分數</th>
+                                <th class="py-2 px-4 border-b text-left">系統評分</th>
                                 <th class="py-2 px-4 border-b text-left">遞交次數</th>
                                 <th class="py-2 px-4 border-b text-left">最後遞交時間</th>
                                 <th class="py-2 px-4 border-b text-left">分心時間</th>
@@ -217,7 +217,7 @@
                             <div id="teacher-default-editor" class="w-full h-32 border border-gray-300"></div>
                         </div>
                         <div>
-                            <label class="block font-bold mb-1">測試腳本 (Python) - 評分核心 (穩定單次比對版)</label>
+                            <label class="block font-bold mb-1">測試腳本 (Python) - 評分核心</label>
                             <p class="text-xs text-gray-500 mb-1">請確保腳本最後回傳 <code>f"{passed},1,{score}"</code>。如需輸入，請填入 <code>input_values</code> 陣列。</p>
                             <div id="teacher-test-editor" class="w-full h-64 border border-gray-300"></div>
                         </div>
@@ -251,7 +251,7 @@
     </main>
 
     <div class="fixed bottom-2 right-4 text-xs text-gray-400 font-mono font-bold">
-        lwh20260331_v3_stable
+        lwh20260331_v3.1_stable
     </div>
 
     <div id="teacher-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -513,8 +513,11 @@ builtins.input = custom_input
                 const searchTarget = (prob.id || "") + " " + (prob.title || "");
                 if (searchKw && !searchTarget.toLowerCase().includes(searchKw)) return;
                 const subKey = `${currentUser.key}_${prob.pId}`; const sub = dbSubmissions[subKey];
-                const scoreText = sub ? `最高分: ${sub.maxScore || 0}` : '尚未作答';
-                const scoreColor = sub && sub.maxScore === 100 ? 'text-green-600' : 'text-gray-500';
+                
+                // 隱藏具體分數，只顯示是否作答
+                const scoreText = sub && sub.attempts > 0 ? '✅ 已遞交' : '尚未作答';
+                const scoreColor = sub && sub.attempts > 0 ? 'text-green-600' : 'text-gray-500';
+                
                 const btn = document.createElement('button');
                 btn.className = "w-full text-left p-4 border rounded-lg hover:bg-blue-50 transition flex justify-between items-center dark:hover:bg-gray-700";
                 btn.innerHTML = `<span class="font-bold text-lg">${prob.title}</span><span class="text-sm font-bold ${scoreColor}">${scoreText}</span>`;
@@ -567,7 +570,7 @@ builtins.input = custom_input
                 // 直接執行學生的原始碼
                 await pyodide.runPythonAsync(studentCode);
                 window.appendTerminal("\n>>> 程式執行完畢。", false);
-                resultMsg.innerText = "ℹ️ 程式執行結束。請確認終端機輸出是否符合你的預期。若確認無誤，請點擊「正式遞交」進行評分。";
+                resultMsg.innerText = "ℹ️ 程式執行結束。請確認終端機輸出是否符合預期。若確認無誤，請點擊「正式遞交」上傳。";
                 resultMsg.classList.remove('hidden', 'text-red-600', 'text-green-600');
                 resultMsg.classList.add('text-blue-600');
             } catch (err) {
@@ -588,9 +591,12 @@ builtins.input = custom_input
             const prob = dbProblems[currentProblemId];
 
             btn.disabled = true; btn.innerText = "遞交中..."; resultMsg.classList.add('hidden');
-            clearTerminal(); window.appendTerminal(">>> 正式遞交：系統自動評分中...\n", false);
+            clearTerminal(); window.appendTerminal(">>> 正式遞交：系統紀錄與處理中...\n", false);
             
-            const indentedStudentCode = studentCode.split('\n').map(line => '    ' + line).join('\n');
+            // 修復防護：避免純註解或空行導致 try 區塊引發 SyntaxError
+            let indentedStudentCode = studentCode.split('\n').map(line => '    ' + line).join('\n');
+            indentedStudentCode += '\n    pass'; // 強制加入 pass 確保縮排合法
+
             const scriptField = prob.testScript || prob.test_script;
             const pythonTestScript = scriptField.replace('{STUDENT_CODE}', indentedStudentCode);
 
@@ -623,13 +629,12 @@ builtins.input = custom_input
                 await fetch(`${FIREBASE_BASE_URL}/submissions/${subKey}.json`, { method: 'PUT', body: JSON.stringify(dbSubmissions[subKey]) });
                 resultMsg.classList.remove('hidden', 'text-red-600', 'text-green-600', 'text-blue-600');
                 if (isError) {
-                    resultMsg.innerText = "❌ 程式無法運行，但已將錯誤程式碼強制遞交供老師檢查。得分：0"; resultMsg.classList.add('text-red-600');
-                } else if (score === 100) {
-                    window.appendTerminal("\n>>> 成績紀錄成功！測試通過 ✅", false);
-                    resultMsg.innerText = "✅ 遞交成功，答案正確！得分：100"; resultMsg.classList.add('text-green-600');
+                    resultMsg.innerText = "❌ 程式無法運行（包含錯誤），但已將程式碼強制遞交供老師檢查。"; 
+                    resultMsg.classList.add('text-red-600');
                 } else {
-                    window.appendTerminal(`\n>>> 紀錄完畢。得分：${score} ❌`, true);
-                    resultMsg.innerText = `❌ 遞交完畢，未能通過部分測試 (通過 ${passed}/${total})。得分：${score}`; resultMsg.classList.add('text-red-600');
+                    window.appendTerminal("\n>>> 遞交程序完成。系統已紀錄你的最新程式碼！", false);
+                    resultMsg.innerText = "✅ 遞交成功！你的程式碼已送出。"; 
+                    resultMsg.classList.add('text-green-600');
                 }
             } catch (networkErr) {
                 resultMsg.innerText = "❌ 網路問題導致成績上傳失敗，請檢查網路狀態。";
