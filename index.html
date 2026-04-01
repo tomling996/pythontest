@@ -42,7 +42,7 @@
         <div class="flex items-center space-x-4">
             <button id="theme-toggle-btn" onclick="toggleTheme()" class="text-sm bg-blue-700 px-3 py-1 rounded hover:bg-blue-800 transition shadow">🌙 暗色模式</button>
             <div id="away-timer-display" class="hidden text-white text-sm font-bold bg-red-500 px-3 py-1 rounded shadow-inner">
-                ⚠️ 離開/閒置: 0 秒
+                ⚠️ 離開視窗: 0 秒
             </div>
             <button onclick="showTeacherLogin()" class="text-sm opacity-70 hover:opacity-100">老師專區</button>
         </div>
@@ -73,7 +73,7 @@
         <div id="problem-select-view" class="hidden bg-white p-6 rounded-lg shadow-md max-w-2xl mx-auto">
             <div class="flex justify-between items-center mb-4">
                 <h2 class="text-2xl font-bold">請選擇題目</h2>
-                <span class="text-sm bg-gray-200 px-3 py-1 rounded font-bold text-gray-800" id="student-info-display-1"></span>
+                <span class="text-sm bg-gray-200 px-3 py-1 rounded font-bold" id="student-info-display-1"></span>
             </div>
             <div class="mb-4">
                 <input type="text" id="student-problem-search" placeholder="🔍 搜尋題目 (名稱或編號)..." class="w-full border p-2 rounded focus:ring-blue-500" oninput="renderStudentProblemList()">
@@ -83,14 +83,13 @@
 
         <div id="student-view" class="hidden space-y-6">
             <div class="bg-white p-6 rounded-lg shadow-md">
-                
-                <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 border-b pb-3">
-                    <h2 class="text-xl font-bold mb-2 md:mb-0" id="problem-title"></h2>
-                    <div class="flex flex-wrap items-center space-x-2">
-                        <button id="btn-prev-prob" onclick="goToPrevProblem()" class="text-blue-600 text-sm hover:bg-blue-50 px-2 py-1 rounded font-bold border border-blue-200 transition hidden">⬅️ 上一題</button>
-                        <button id="btn-next-prob" onclick="goToNextProblem()" class="text-blue-600 text-sm hover:bg-blue-50 px-2 py-1 rounded font-bold border border-blue-200 transition hidden">下一題 ➡️</button>
+                <div class="flex flex-col md:flex-row justify-between items-center mb-4 space-y-2 md:space-y-0">
+                    <h2 class="text-xl font-bold" id="problem-title"></h2>
+                    <div class="flex items-center space-x-3">
+                        <button onclick="navigateProblem(-1)" class="bg-gray-200 text-gray-700 px-3 py-1 rounded text-sm hover:bg-gray-300 font-bold dark:text-gray-800">⬅️ 上一題</button>
+                        <button onclick="navigateProblem(1)" class="bg-gray-200 text-gray-700 px-3 py-1 rounded text-sm hover:bg-gray-300 font-bold dark:text-gray-800">下一題 ➡️</button>
                         <span class="text-sm bg-gray-200 px-3 py-1 rounded font-bold text-gray-800 hidden md:inline-block" id="student-info-display-2"></span>
-                        <button onclick="goHome()" class="text-gray-600 hover:text-gray-900 text-sm font-bold bg-gray-100 px-2 py-1 rounded transition">返回列表</button>
+                        <button onclick="showView('problem-select-view'); renderStudentProblemList();" class="text-blue-600 text-sm hover:underline font-bold">返回列表</button>
                     </div>
                 </div>
                 
@@ -133,9 +132,8 @@
             <div class="flex justify-between items-center mb-6 border-b pb-4">
                 <h2 class="text-2xl font-bold">老師專區</h2>
                 <div class="space-x-4">
-                    <button onclick="changeAdminPassword()" class="text-purple-600 hover:underline font-bold text-sm">⚙️ 修改管理密碼</button>
                     <button onclick="loadDataAndRender()" class="text-green-600 hover:underline font-bold text-sm">重新整理資料</button>
-                    <button onclick="showLogin()" class="text-blue-600 hover:underline font-bold text-sm">登出</button>
+                    <button onclick="teacherLogout()" class="text-blue-600 hover:underline font-bold text-sm">登出後台</button>
                 </div>
             </div>
 
@@ -157,13 +155,18 @@
                 </div>
             </div>
 
-            <div class="flex flex-wrap gap-2 mb-6 border-b pb-2">
+            <div class="flex space-x-4 mb-6">
                 <button onclick="switchTeacherTab('grades')" id="tab-btn-grades" class="px-4 py-2 bg-blue-600 text-white rounded-md font-bold">成績與防作弊監控</button>
                 <button onclick="switchTeacherTab('problems')" id="tab-btn-problems" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md font-bold hover:bg-gray-300">題目管理 (出題)</button>
-                <button onclick="switchTeacherTab('leaderboard')" id="tab-btn-leaderboard" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md font-bold hover:bg-gray-300">🏆 龍虎榜</button>
             </div>
 
             <div id="teacher-tab-grades">
+                <div class="mb-4 flex space-x-3 p-3 bg-purple-50 rounded-lg border border-purple-200 shadow-sm dark:bg-gray-800 dark:border-gray-700">
+                    <span class="font-bold text-purple-800 self-center dark:text-purple-300">🏆 產生龍虎榜：</span>
+                    <button onclick="generateLeaderboard('score')" class="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded font-bold shadow-sm transition">綜合高分榜</button>
+                    <button onclick="generateLeaderboard('focus')" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-bold shadow-sm transition">最高專注榜</button>
+                </div>
+
                 <div class="mb-4 flex items-center space-x-2">
                     <label class="font-bold">選擇要查看的題目成績：</label>
                     <select id="teacher-problem-filter" onchange="renderTeacherTable()" class="border p-2 rounded">
@@ -172,7 +175,7 @@
                 </div>
                 <div class="overflow-x-auto">
                     <table class="min-w-full bg-white border border-gray-200 text-sm">
-                        <thead class="bg-gray-100">
+                        <thead class="bg-gray-100 dark:bg-gray-700">
                             <tr>
                                 <th class="py-2 px-4 border-b text-left">班級</th>
                                 <th class="py-2 px-4 border-b text-left">學號</th>
@@ -180,7 +183,7 @@
                                 <th class="py-2 px-4 border-b text-left">系統評分</th>
                                 <th class="py-2 px-4 border-b text-left">遞交次數</th>
                                 <th class="py-2 px-4 border-b text-left">最後遞交時間</th>
-                                <th class="py-2 px-4 border-b text-left">遞交時分心</th>
+                                <th class="py-2 px-4 border-b text-left">分心時間</th>
                                 <th class="py-2 px-4 border-b text-center">歷次記錄</th>
                             </tr>
                         </thead>
@@ -188,35 +191,6 @@
                     </table>
                 </div>
                 <button onclick="clearSubmissions()" class="mt-4 text-red-600 text-sm hover:underline font-bold">⚠ 清除所有學生成績</button>
-            </div>
-
-            <div id="teacher-tab-leaderboard" class="hidden space-y-4">
-                <div class="flex flex-col md:flex-row items-start md:items-center justify-between bg-blue-50 p-4 rounded border border-blue-200">
-                    <h3 class="text-lg font-bold text-blue-900 mb-2 md:mb-0">🏆 班級綜合排行榜</h3>
-                    <div class="flex items-center space-x-2">
-                        <label class="font-bold text-sm text-blue-800">排序依據：</label>
-                        <select id="leaderboard-sort" onchange="renderLeaderboard()" class="border border-blue-300 p-2 rounded text-sm bg-white font-bold text-gray-800">
-                            <option value="score_desc">總得分 (由高至低)</option>
-                            <option value="away_asc">分心閒置時間 (由少至多 - 最專心)</option>
-                            <option value="away_desc">分心閒置時間 (由多至少 - 須關注)</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="min-w-full bg-white border border-gray-200 text-sm text-center">
-                        <thead class="bg-gray-800 text-white">
-                            <tr>
-                                <th class="py-3 px-4 border-b">排名</th>
-                                <th class="py-3 px-4 border-b">班級</th>
-                                <th class="py-3 px-4 border-b">學號</th>
-                                <th class="py-3 px-4 border-b">完成題數</th>
-                                <th class="py-3 px-4 border-b">總得分</th>
-                                <th class="py-3 px-4 border-b">總分心閒置時間</th>
-                            </tr>
-                        </thead>
-                        <tbody id="leaderboard-table-body"></tbody>
-                    </table>
-                </div>
             </div>
 
             <div id="teacher-tab-problems" class="hidden space-y-6">
@@ -245,7 +219,6 @@
                         
                         <div>
                             <label class="block font-bold mb-1">預期輸出範例 (可選)</label>
-                            <p class="text-xs text-gray-500 mb-1">若填寫，系統會自動帶入下方腳本的 <code>{EXPECTED_OUTPUT}</code> 進行防失誤的逐行精確比對。</p>
                             <textarea id="new-prob-expected" class="w-full border p-2 rounded h-16 font-mono text-sm"></textarea>
                         </div>
 
@@ -254,8 +227,7 @@
                             <div id="teacher-default-editor" class="w-full h-32 border border-gray-300"></div>
                         </div>
                         <div>
-                            <label class="block font-bold mb-1">測試腳本 (Python) - 終極穩定評分版</label>
-                            <p class="text-xs text-gray-500 mb-1">腳本已升級為「逐行無空白」比對法，100% 防止學生因多餘空白或換行符號導致 0 分。</p>
+                            <label class="block font-bold mb-1">測試腳本 (Python)</label>
                             <div id="teacher-test-editor" class="w-full h-64 border border-gray-300"></div>
                         </div>
                         <div class="flex space-x-2">
@@ -269,7 +241,7 @@
                     <div class="flex justify-between items-center border-b pb-2 mb-2">
                         <h3 class="text-lg font-bold">現有題目列表</h3>
                         <div class="flex items-center space-x-3 bg-red-50 p-2 rounded border border-red-100" id="bulkDeleteContainer">
-                            <label class="flex items-center cursor-pointer text-sm text-red-800 font-bold">
+                            <label class="flex items-center cursor-pointer text-sm text-red-800 font-bold dark:text-red-400">
                                 <input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this)" class="w-4 h-4 mr-2 text-red-600 rounded focus:ring-red-500">
                                 全選
                             </label>
@@ -287,18 +259,17 @@
         </div>
     </main>
 
-    <div class="fixed bottom-2 right-4 text-xs text-gray-400 font-mono font-bold">
-        lwh2026_Final_V5 (Anti-Idle & Status Fix)
-    </div>
-
     <div id="teacher-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div class="bg-white p-6 rounded-lg shadow-lg max-w-sm w-full dark:bg-gray-800">
-            <h3 class="text-lg font-bold mb-4">老師專區登入</h3>
-            <input type="password" id="teacher-pwd" placeholder="輸入管理員密碼" class="w-full border p-2 rounded mb-4">
-            <div class="flex justify-end space-x-2">
-                <button onclick="closeTeacherModal()" class="px-4 py-2 bg-gray-200 text-gray-800 rounded font-bold hover:bg-gray-300">取消</button>
-                <button onclick="verifyTeacher()" class="px-4 py-2 bg-blue-600 text-white rounded font-bold hover:bg-blue-700">登入</button>
-            </div>
+        <div class="bg-white p-6 rounded-lg shadow-lg max-w-sm w-full dark:bg-gray-800 text-center">
+            <h3 class="text-lg font-bold mb-2">老師管理後台</h3>
+            <p class="text-sm text-gray-500 mb-6">請使用授權的 Google 帳號登入</p>
+            
+            <button onclick="verifyTeacher()" id="teacher-login-btn" class="flex items-center justify-center w-full px-4 py-2 border border-gray-300 rounded shadow-sm bg-white text-sm font-bold text-gray-700 hover:bg-gray-50 mb-4 transition">
+                <img class="h-5 w-5 mr-2" src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google">
+                使用 Google 帳號登入
+            </button>
+
+            <button onclick="closeTeacherModal()" class="text-gray-400 hover:text-gray-600 text-sm font-bold">取消</button>
         </div>
     </div>
 
@@ -320,9 +291,24 @@
     </div>
 
     <script>
-        // ★ 請根據您的 Firebase 設定修改 URL (如不需要 query 則維持現狀)
-        const FIREBASE_BASE_URL = "https://ktsssprogram-default-rtdb.asia-southeast1.firebasedatabase.app";
-        function getAuthQuery() { return ""; } // 如果需要 auth token 可以在這修改
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyB9cGjv2N8cfxO1ZYTHmN4spz8qvq0_tOY",
+            authDomain: "ktsssprogram.firebaseapp.com",
+            databaseURL: "https://ktsssprogram-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "ktsssprogram",
+            storageBucket: "ktsssprogram.firebasestorage.app",
+            messagingSenderId: "322669271891",
+            appId: "1:322669271891:web:4d3747ead355842e661fa6"
+        };
+        
+        const ALLOWED_TEACHER_EMAIL = "tomling996@gmail.com";
+
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const provider = new firebase.auth.GoogleAuthProvider();
+        
+        const FIREBASE_BASE_URL = firebaseConfig.databaseURL;
         
         let pyodide = null;
         let currentUser = null;
@@ -333,20 +319,16 @@
         let dbSessionStats = {}; 
         let activeSystemKey = null;
 
-        // 【新增】題目導航順序追蹤
-        let sortedProblemIds = [];
-
-        // 【優化】防作弊機制相關變數 (含閒置追蹤)
         let isAway = false;
         let awayStartTime = null;
         let totalAwayTime = 0; 
         let cooldownTimer = null;
         let currentViewingSub = null;
-        let lastActivityTime = Date.now();
+
+        let teacherToken = null; 
 
         let studentEditor, teacherDefaultEditor, teacherTestEditor, teacherHistoryEditor;
 
-        // 主題切換器
         function toggleTheme() {
             document.body.classList.toggle('dark-mode');
             const btn = document.getElementById('theme-toggle-btn');
@@ -360,7 +342,6 @@
         }
         if(localStorage.getItem('theme') === 'dark') toggleTheme();
 
-        // 時間格式化 Helper (YYYY/MM/DD HH:MM:SS)
         function getFormattedTime() {
             const d = new Date();
             const pad = (n) => n.toString().padStart(2, '0');
@@ -380,30 +361,14 @@
             document.getElementById('terminal-output').innerHTML = '';
         }
 
-        function simpleHash(str) {
-            let hash = 0;
-            for (let i = 0; i < str.length; i++) {
-                hash = ((hash << 5) - hash) + str.charCodeAt(i);
-                hash |= 0; 
-            }
-            return hash;
-        }
-
-        // 終極防誤判測試腳本 (採用逐行精確去空白比對)
-        const defaultBeginnerTestScript = `import sys\nimport io\nimport builtins\n\n# 若需要輸入數據，請填入此陣列中，例如 ["Apple", "Banana"]\ninput_values = []\n\noriginal_input = builtins.input\ndef mock_input(prompt=""):\n    sys.stdout.write(prompt)\n    val = input_values.pop(0) if input_values else ""\n    sys.stdout.write(str(val) + "\\n")\n    return val\n\nbuiltins.input = mock_input\ncaptured_output = io.StringIO()\nsys.stdout = captured_output\n\ntry:\n    # 獨立 namespace，避免污染全域\n    _test_ns = {'__builtins__': builtins}\n    exec("""{STUDENT_CODE}""", _test_ns)\nexcept Exception:\n    pass\n\nsys.stdout = sys.__stdout__\nbuiltins.input = original_input\n\nstudent_out = captured_output.getvalue()\nexpected_out = """{EXPECTED_OUTPUT}"""\n\n# 終極比對法：逐行去除頭尾空白\nout_lines = [line.strip() for line in student_out.splitlines() if line.strip() != ""]\nexp_lines = [line.strip() for line in expected_out.splitlines() if line.strip() != ""]\n\npassed = 1 if out_lines == exp_lines else 0\nscore = 100 if passed else 0\n\nf"{passed},1,{score}"`;
+        // 優化 1: 加入 finally 區塊確保 stdout 還原
+        const defaultBeginnerTestScript = `import sys\nimport io\nimport builtins\n\ninput_values = []\n\noriginal_input = builtins.input\ndef mock_input(prompt=""):\n    sys.stdout.write(prompt)\n    val = input_values.pop(0) if input_values else ""\n    sys.stdout.write(str(val) + "\\n")\n    return val\n\nbuiltins.input = mock_input\ncaptured_output = io.StringIO()\nsys.stdout = captured_output\n\ntry:\n    exec("""{STUDENT_CODE}""", globals())\nexcept Exception:\n    pass\nfinally:\n    sys.stdout = sys.__stdout__\n    builtins.input = original_input\n\nstudent_out = captured_output.getvalue()\nexpected_out = """{EXPECTED_OUTPUT}"""\n\nout_lines = [line.strip() for line in student_out.splitlines() if line.strip() != ""]\nexp_lines = [line.strip() for line in expected_out.splitlines() if line.strip() != ""]\n\npassed = 1 if out_lines == exp_lines else 0\nscore = 100 if passed else 0\n\nf"{passed},1,{score}"`;
 
         function initEditors() {
             const editorSettings = { mode: "ace/mode/python", theme: "ace/theme/monokai", fontSize: "14px", showPrintMargin: false, enableBasicAutocompletion: true, enableLiveAutocompletion: true };
             
             studentEditor = ace.edit("student-editor");
             studentEditor.setOptions(editorSettings);
-            
-            // 【優化 2】即時儲存草稿
-            studentEditor.session.on('change', function() {
-                if (currentProblemId && currentUser) {
-                    localStorage.setItem(`draft_${currentUser.key}_${currentProblemId}`, studentEditor.getValue());
-                }
-            });
             
             teacherDefaultEditor = ace.edit("teacher-default-editor");
             teacherDefaultEditor.setOptions(editorSettings);
@@ -413,7 +378,6 @@
             teacherTestEditor.setOptions(editorSettings);
             teacherTestEditor.setValue(defaultBeginnerTestScript, -1);
 
-            // 教師端歷史紀錄唯讀 Editor
             teacherHistoryEditor = ace.edit("code-modal-editor");
             teacherHistoryEditor.setOptions({ ...editorSettings, readOnly: true, highlightActiveLine: false, highlightGutterLine: false });
         }
@@ -427,7 +391,6 @@
                 });
                 pyodide = pyodideInstance;
 
-                // 初始化最純粹的彈出視窗 input 邏輯
                 await pyodide.runPythonAsync(`
 import builtins
 import js
@@ -442,8 +405,8 @@ builtins.input = custom_input
                 `);
 
                 const [probRes, subRes] = await Promise.all([
-                    fetch(`${FIREBASE_BASE_URL}/problems.json${getAuthQuery()}`).then(r => r.json()),
-                    fetch(`${FIREBASE_BASE_URL}/submissions.json${getAuthQuery()}`).then(r => r.json())
+                    fetch(`${FIREBASE_BASE_URL}/problems.json`).then(r => r.json()),
+                    fetch(`${FIREBASE_BASE_URL}/submissions.json`).then(r => r.json())
                 ]);
                 dbProblems = probRes || {};
                 dbSubmissions = subRes || {};
@@ -457,86 +420,59 @@ builtins.input = custom_input
         }
         init();
 
-        function goHome() { 
-            if (currentUser) {
-                showView('problem-select-view');
-                renderStudentProblemList(); // 返回列表時重新繪製，以更新最新的「狀態標籤」
-            } else {
-                showLogin(); 
-            }
-        }
-
+        function goHome() { if (currentUser) showView('problem-select-view'); else showLogin(); }
         function showView(viewId) {
             ['login-view', 'problem-select-view', 'student-view', 'teacher-view'].forEach(id => document.getElementById(id).classList.add('hidden'));
             document.getElementById(viewId).classList.remove('hidden');
         }
         function showLogin() { showView('login-view'); currentUser = null; document.getElementById('student-key').value = ''; totalAwayTime = 0; updateAwayTimeUI(); }
 
-        // ==========================================
-        // 【優化 3】嚴密防作弊：30 秒閒置偵測 + 視窗失焦偵測
-        // ==========================================
-        function resetActivity() {
-            lastActivityTime = Date.now();
-            if (isAway && !document.hidden && document.hasFocus()) {
-                handleReturn(); // 滑鼠一動就認定回來了
-            }
-        }
-        
-        ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'].forEach(evt => {
-            window.addEventListener(evt, resetActivity);
-        });
-
         function handleAway() {
             if (!currentUser || !activeSystemKey || isAway) return;
-            isAway = true; 
-            awayStartTime = Date.now();
-            document.getElementById('away-timer-display').classList.replace('bg-red-500', 'bg-yellow-500'); // 變黃表示正在累積秒數
+            isAway = true; awayStartTime = Date.now();
         }
-
         async function handleReturn() {
             if (!currentUser || !activeSystemKey || !isAway) return;
             isAway = false;
             if (awayStartTime) {
                 totalAwayTime += (Date.now() - awayStartTime);
-                awayStartTime = null; 
-                updateAwayTimeUI();
-                document.getElementById('away-timer-display').classList.replace('bg-yellow-500', 'bg-red-500');
-                
-                await fetch(`${FIREBASE_BASE_URL}/session_stats/${activeSystemKey.key}/${currentUser.key}.json${getAuthQuery()}`, {
+                awayStartTime = null; updateAwayTimeUI();
+                await fetch(`${FIREBASE_BASE_URL}/session_stats/${activeSystemKey.key}/${currentUser.key}.json`, {
                     method: 'PATCH', body: JSON.stringify({ awayTime: totalAwayTime })
                 }).catch(e => {}); 
             }
         }
-
-        window.addEventListener('blur', handleAway); 
-        window.addEventListener('focus', resetActivity);
-        document.addEventListener('visibilitychange', () => { if (document.hidden) handleAway(); else resetActivity(); });
+        
+        // 優化 3: 防分屏作弊，使用 document.hasFocus() 主動輪詢偵測
+        setInterval(() => {
+            if (!currentUser || !activeSystemKey) return;
+            const isActuallyFocused = document.hasFocus() && !document.hidden;
+            if (!isActuallyFocused && !isAway) {
+                handleAway();
+            } else if (isActuallyFocused && isAway) {
+                handleReturn();
+            }
+        }, 1000);
 
         function updateAwayTimeUI() {
             const display = document.getElementById('away-timer-display');
             if (currentUser) {
                 display.classList.remove('hidden');
-                display.innerText = `⚠️ 離開/閒置: ${Math.floor(totalAwayTime / 1000)} 秒`;
+                display.innerText = `⚠️ 離開視窗: ${Math.floor(totalAwayTime / 1000)} 秒`;
             } else display.classList.add('hidden');
         }
 
-        // 定時巡邏：處理 30 秒掛機不動的「分屏防禦」
         setInterval(async () => {
             if (currentUser && activeSystemKey) {
                 try {
-                    const sysRes = await fetch(`${FIREBASE_BASE_URL}/system.json${getAuthQuery()}`).then(r => r.json());
+                    const sysRes = await fetch(`${FIREBASE_BASE_URL}/system.json`).then(r => r.json());
                     if (!sysRes || sysRes.key !== activeSystemKey.key) {
                         totalAwayTime = 0; awayStartTime = null; activeSystemKey = sysRes; updateAwayTimeUI();
                         if (!sysRes || Date.now() > sysRes.expiresAt) { alert("⚠️ 課堂已結束或密碼已重置，請重新登入。"); showLogin(); }
                     }
                 } catch(e) {}
-
-                // 閒置判定 (無動作超過 30 秒)
-                if (!isAway && (Date.now() - lastActivityTime > 30000)) {
-                    handleAway();
-                }
             }
-        }, 5000);
+        }, 15000);
 
         async function loginStudent() {
             const cls = document.getElementById('student-class').value.trim().toUpperCase();
@@ -549,7 +485,7 @@ builtins.input = custom_input
             loginBtn.innerText = "驗證密碼中..."; loginBtn.disabled = true; errorMsg.classList.add('hidden');
 
             try {
-                const sysRes = await fetch(`${FIREBASE_BASE_URL}/system.json${getAuthQuery()}`).then(r => r.json());
+                const sysRes = await fetch(`${FIREBASE_BASE_URL}/system.json`).then(r => r.json());
                 if (!sysRes || !sysRes.key || Date.now() > sysRes.expiresAt) { errorMsg.innerText = "⛔ 目前未開放登入，請等待老師提供新的課堂密碼。"; errorMsg.classList.remove('hidden'); return; }
                 if (enteredKey !== sysRes.key) { errorMsg.innerText = "❌ 課堂密碼錯誤或已過期，請重新確認。"; errorMsg.classList.remove('hidden'); return; }
 
@@ -557,17 +493,18 @@ builtins.input = custom_input
                 const infoStr = `${cls} 班 - ${sid} 號`;
                 document.getElementById('student-info-display-1').innerText = infoStr; document.getElementById('student-info-display-2').innerText = infoStr;
                 
-                const stats = await fetch(`${FIREBASE_BASE_URL}/session_stats/${activeSystemKey.key}/${currentUser.key}.json${getAuthQuery()}`).then(r=>r.json());
+                const stats = await fetch(`${FIREBASE_BASE_URL}/session_stats/${activeSystemKey.key}/${currentUser.key}.json`).then(r=>r.json());
                 totalAwayTime = (stats && stats.awayTime) ? stats.awayTime : 0; updateAwayTimeUI();
-                
                 document.getElementById('student-problem-search').value = '';
-                renderStudentProblemList(); 
-                showView('problem-select-view');
+                renderStudentProblemList(); showView('problem-select-view');
             } catch (err) { errorMsg.innerText = "網路連線錯誤，無法驗證密碼，請重試。"; errorMsg.classList.remove('hidden');
             } finally { loginBtn.innerText = "登入"; loginBtn.disabled = false; }
         }
 
+        function getAuthQuery() { return teacherToken ? `?auth=${teacherToken}` : ""; }
+
         async function generateClassroomKey() {
+            if(!teacherToken) return alert("請先登入");
             const key = Math.floor(100000 + Math.random() * 900000).toString();
             const expiresAt = Date.now() + 120 * 60 * 1000; 
             const systemData = { key, expiresAt };
@@ -578,6 +515,7 @@ builtins.input = custom_input
         }
 
         async function disableClassroomKey() {
+            if(!teacherToken) return alert("請先登入");
             if(!confirm("確定要立即停用目前的課堂密碼嗎？\n停用後學生將無法登入，且分心計時器紀錄將被清除。")) return;
             await fetch(`${FIREBASE_BASE_URL}/system.json${getAuthQuery()}`, { method: 'DELETE' });
             await fetch(`${FIREBASE_BASE_URL}/session_stats.json${getAuthQuery()}`, { method: 'DELETE' });
@@ -595,106 +533,73 @@ builtins.input = custom_input
 
         setInterval(() => { if (!document.getElementById('teacher-view').classList.contains('hidden')) renderKeyStatus(); }, 60000);
 
+        // 優化 2: 學生題目列表狀態顯示
         function renderStudentProblemList() {
             const listDiv = document.getElementById('problem-list'); listDiv.innerHTML = '';
             if (Object.keys(dbProblems).length === 0) { listDiv.innerHTML = '<p class="text-gray-500">老師尚未新增任何題目。</p>'; return; }
-            
             const searchKw = (document.getElementById('student-problem-search')?.value || '').toLowerCase();
             let probsArray = Object.entries(dbProblems).map(([pId, prob]) => ({ pId, ...prob }));
             probsArray.sort((a, b) => {
                 const idA = a.id || a.title || ""; const idB = b.id || b.title || "";
                 return idA.localeCompare(idB, undefined, { numeric: true, sensitivity: 'base' });
             });
-
-            // 建立導航陣列
-            sortedProblemIds = probsArray.map(p => p.pId);
-
             probsArray.forEach(prob => {
                 const searchTarget = (prob.id || "") + " " + (prob.title || "");
                 if (searchKw && !searchTarget.toLowerCase().includes(searchKw)) return;
+                const subKey = `${currentUser.key}_${prob.pId}`; const sub = dbSubmissions[subKey];
                 
-                const subKey = `${currentUser.key}_${prob.pId}`; 
-                const sub = dbSubmissions[subKey];
-                
-                // 【優化 2】超精準草稿與遞交狀態判斷
-                const draftCode = localStorage.getItem(`draft_${currentUser.key}_${prob.pId}`);
-                const defaultCode = prob.defaultCode || "# 在這裡寫下你的程式碼\n";
-                const hasDraft = draftCode && draftCode.trim() !== defaultCode.trim();
-                const hasSubmitted = sub && sub.attempts > 0;
-
                 let scoreText = '尚未作答';
                 let scoreColor = 'text-gray-500';
-
-                if (hasSubmitted) {
-                    if (hasDraft && draftCode.trim() !== sub.code.trim()) {
-                        scoreText = '⚠️ 已修改 (未遞交)';
-                        scoreColor = 'text-yellow-600';
-                    } else {
-                        scoreText = '✅ 已完成';
-                        scoreColor = 'text-green-600';
-                    }
-                } else if (hasDraft) {
-                    scoreText = '✏️ 尚未遞交';
-                    scoreColor = 'text-blue-500';
+                if (sub && sub.attempts > 0) {
+                    scoreText = '✅ 已完成';
+                    scoreColor = 'text-green-600';
+                } else if (sub && sub.draftCode && sub.draftCode !== (prob.defaultCode || "# 在這裡寫下你的程式碼\n")) {
+                    scoreText = '📝 尚未遞交';
+                    scoreColor = 'text-yellow-600';
                 }
                 
                 const btn = document.createElement('button');
                 btn.className = "w-full text-left p-4 border rounded-lg hover:bg-blue-50 transition flex justify-between items-center dark:hover:bg-gray-700";
                 btn.innerHTML = `<span class="font-bold text-lg">${prob.title}</span><span class="text-sm font-bold ${scoreColor}">${scoreText}</span>`;
-                btn.onclick = () => openProblem(prob.pId); 
-                listDiv.appendChild(btn);
+                btn.onclick = () => openProblem(prob.pId); listDiv.appendChild(btn);
             });
+        }
+
+        // 優化 4: 新增「上一題 / 下一題」切換功能
+        function navigateProblem(direction) {
+            let probsArray = Object.keys(dbProblems);
+            probsArray.sort((a, b) => {
+                const idA = dbProblems[a].id || dbProblems[a].title || "";
+                const idB = dbProblems[b].id || dbProblems[b].title || "";
+                return idA.localeCompare(idB, undefined, { numeric: true, sensitivity: 'base' });
+            });
+            const currentIndex = probsArray.indexOf(currentProblemId);
+            const nextIndex = currentIndex + direction;
+            if (nextIndex >= 0 && nextIndex < probsArray.length) {
+                openProblem(probsArray[nextIndex]);
+            } else {
+                alert(direction > 0 ? "這已經是最後一題了！" : "這已經是第一題了！");
+            }
         }
 
         function openProblem(pId) {
             currentProblemId = pId; const prob = dbProblems[pId]; const subKey = `${currentUser.key}_${pId}`;
             if (!dbSubmissions[subKey]) dbSubmissions[subKey] = { cls: currentUser.cls, sid: currentUser.sid, name: currentUser.name, pId: pId, maxScore: 0, attempts: 0, history: [] };
+            document.getElementById('problem-title').innerText = prob.title; document.getElementById('problem-desc').innerText = prob.desc || prob.description; 
             
-            document.getElementById('problem-title').innerText = prob.title; 
-            document.getElementById('problem-desc').innerText = prob.desc || prob.description; 
-            
-            const expectedOutputEl = document.getElementById('problem-expected-output'); 
-            const expectedOutputContainer = document.getElementById('expected-output-container');
-            if (prob.expected_output && prob.expected_output.trim() !== "") { 
-                expectedOutputEl.innerText = prob.expected_output; expectedOutputContainer.classList.remove('hidden');
+            const expectedOutputEl = document.getElementById('problem-expected-output'); const expectedOutputContainer = document.getElementById('expected-output-container');
+            if (prob.expected_output && prob.expected_output.trim() !== "") { expectedOutputEl.innerText = prob.expected_output; expectedOutputContainer.classList.remove('hidden');
             } else expectedOutputContainer.classList.add('hidden');
 
-            // 優先載入草稿 > 歷史紀錄 > 預設模板
-            const draftCode = localStorage.getItem(`draft_${currentUser.key}_${pId}`);
-            let codeToLoad = prob.defaultCode || "# 在這裡寫下你的程式碼\n";
-            if (draftCode) {
-                codeToLoad = draftCode;
-            } else if (dbSubmissions[subKey].code) {
-                codeToLoad = dbSubmissions[subKey].code;
-            }
-            
+            const codeToLoad = dbSubmissions[subKey].code || dbSubmissions[subKey].draftCode || prob.defaultCode || "# 在這裡寫下你的程式碼\n";
             studentEditor.setValue(codeToLoad, -1);
-            document.getElementById('result-message').classList.add('hidden'); 
-            clearTerminal(); 
-            
-            updateNavButtons();
-            updateSubmitStatus(); 
-            showView('student-view');
-        }
+            document.getElementById('result-message').classList.add('hidden'); clearTerminal(); updateSubmitStatus(); showView('student-view');
 
-        // 【優化 4】快速 上一題 / 下一題
-        function updateNavButtons() {
-            const idx = sortedProblemIds.indexOf(currentProblemId);
-            const btnPrev = document.getElementById('btn-prev-prob');
-            const btnNext = document.getElementById('btn-next-prob');
-            
-            if (idx > 0) btnPrev.classList.remove('hidden'); else btnPrev.classList.add('hidden');
-            if (idx !== -1 && idx < sortedProblemIds.length - 1) btnNext.classList.remove('hidden'); else btnNext.classList.add('hidden');
-        }
-
-        function goToPrevProblem() {
-            const idx = sortedProblemIds.indexOf(currentProblemId);
-            if (idx > 0) openProblem(sortedProblemIds[idx - 1]);
-        }
-
-        function goToNextProblem() {
-            const idx = sortedProblemIds.indexOf(currentProblemId);
-            if (idx !== -1 && idx < sortedProblemIds.length - 1) openProblem(sortedProblemIds[idx + 1]);
+            // 優化 2: 監聽編輯器變更，自動記錄草稿
+            studentEditor.session.removeAllListeners('change');
+            studentEditor.session.on('change', function() {
+                dbSubmissions[subKey].draftCode = studentEditor.getValue();
+            });
         }
 
         function updateSubmitStatus() {
@@ -714,7 +619,7 @@ builtins.input = custom_input
             btn.innerText = "🚀 正式遞交"; countSpan.innerText = `總遞交次數：${sub ? (sub.attempts || 0) : 0}`;
         }
 
-        // 【優化 1】徹底修復 Namespace 污染
+        // 優化 1: testCode 增加環境變數重置
         async function testCode() {
             const btn = document.getElementById('test-btn');
             const resultMsg = document.getElementById('result-message');
@@ -723,37 +628,25 @@ builtins.input = custom_input
             btn.disabled = true; btn.innerText = "執行中..."; resultMsg.classList.add('hidden');
             clearTerminal(); window.appendTerminal(">>> 測試模式：可手動輸入數據進行測試...\n", false);
 
-            // 將程式碼傳入 Pyodide 中
-            pyodide.globals.set("student_code_to_run", studentCode);
-
             try {
-                // 使用封閉的 dict 作為 globals，確保不會覆蓋 __builtins__ 的 input
+                // 強制重置 Pyodide 環境的標準輸出與 input
                 await pyodide.runPythonAsync(`
-import builtins
-import js
-import traceback
-
+import sys, builtins, js
+sys.stdout = sys.__stdout__
 def custom_input(prompt_text=""):
     res = js.prompt(prompt_text)
     if res is None: res = ""
-    js.window.appendTerminal(str(prompt_text) + str(res), False)
+    js.window.appendTerminal(str(prompt_text) + str(res) + "\\n", False)
     return res
-
 builtins.input = custom_input
-
-_isolated_globals = {'__builtins__': builtins}
-try:
-    exec(student_code_to_run, _isolated_globals)
-except Exception as e:
-    js.window.appendTerminal("\\n>>> 系統執行發生錯誤！\\n" + traceback.format_exc(), True)
-    raise e
                 `);
-                
+                await pyodide.runPythonAsync(studentCode);
                 window.appendTerminal("\n>>> 程式執行完畢。", false);
-                resultMsg.innerText = "ℹ️ 程式執行結束。請確認終端機輸出是否符合預期。若確認無誤，請點擊「正式遞交」上傳。";
+                resultMsg.innerText = "ℹ️ 若確認無誤，請點擊「正式遞交」上傳。";
                 resultMsg.classList.remove('hidden', 'text-red-600', 'text-green-600');
                 resultMsg.classList.add('text-blue-600');
             } catch (err) {
+                window.appendTerminal("\n>>> 系統執行發生錯誤！\n" + err.toString(), true);
                 resultMsg.classList.remove('hidden', 'text-green-600', 'text-blue-600');
                 resultMsg.classList.add('text-red-600');
                 resultMsg.innerText = "❌ 程式語法錯誤或執行失敗！";
@@ -771,16 +664,15 @@ except Exception as e:
             btn.disabled = true; btn.innerText = "遞交中..."; resultMsg.classList.add('hidden');
             clearTerminal(); window.appendTerminal(">>> 系統紀錄與處理中...\n", false);
             
-            let indentedStudentCode = studentCode.split('\n').map(line => '    ' + line).join('\n');
-            indentedStudentCode += '\n    pass';
+            let scriptField = prob.testScript || prob.test_script;
+            let injectedCode = studentCode;
 
-            const scriptField = prob.testScript || prob.test_script;
-            
-            let pythonTestScript = scriptField.replace('{STUDENT_CODE}', indentedStudentCode);
+            if (!scriptField.includes('"""{STUDENT_CODE}"""') && scriptField.includes('try:\n{STUDENT_CODE}')) {
+                injectedCode = studentCode.split('\n').map(line => '    ' + line).join('\n') + '\n    pass';
+            }
+
+            let pythonTestScript = scriptField.replace('{STUDENT_CODE}', injectedCode);
             pythonTestScript = pythonTestScript.replace('{EXPECTED_OUTPUT}', prob.expected_output || "");
-            
-            // 為了向下相容舊的未修改模板
-            pythonTestScript = pythonTestScript.replace('請在此輸入預期輸出', prob.expected_output || "");
 
             let score = 0, passed = 0, total = 1;
 
@@ -793,9 +685,7 @@ except Exception as e:
                     score = pyodide.globals.get('score') || 0; 
                     total = 1; 
                 }
-            } catch (err) {
-                score = 0;
-            }
+            } catch (err) { score = 0; }
 
             const currentTimestamp = Date.now();
             const currentTimeStr = getFormattedTime(); 
@@ -809,18 +699,15 @@ except Exception as e:
             dbSubmissions[subKey].lastSubmitTime = currentTimeStr; 
             dbSubmissions[subKey].lastSubmitTimestamp = currentTimestamp;
             dbSubmissions[subKey].awayTime = awaySeconds; 
-            dbSubmissions[subKey].code = studentCode; // 更新為最新程式碼
+            dbSubmissions[subKey].code = studentCode;
+            dbSubmissions[subKey].draftCode = studentCode; 
             
             if (score > (dbSubmissions[subKey].maxScore || 0)) {
                 dbSubmissions[subKey].maxScore = score;
             }
             
             try {
-                await fetch(`${FIREBASE_BASE_URL}/submissions/${subKey}.json${getAuthQuery()}`, { method: 'PUT', body: JSON.stringify(dbSubmissions[subKey]) });
-                
-                // 強制覆寫 localStorage 保持同步 (與狀態標記連動)
-                localStorage.setItem(`draft_${currentUser.key}_${currentProblemId}`, studentCode);
-
+                await fetch(`${FIREBASE_BASE_URL}/submissions/${subKey}.json`, { method: 'PUT', body: JSON.stringify(dbSubmissions[subKey]) });
                 window.appendTerminal(">>> 遞交程序完成。系統已紀錄你的最新程式碼！", false);
                 resultMsg.innerText = "✅ 遞交成功！你的程式碼已送出。"; 
                 resultMsg.classList.remove('hidden', 'text-red-600', 'text-blue-600');
@@ -836,8 +723,45 @@ except Exception as e:
         }
 
         function showTeacherLogin() { document.getElementById('teacher-modal').classList.remove('hidden'); }
-        function closeTeacherModal() { document.getElementById('teacher-modal').classList.add('hidden'); document.getElementById('teacher-pwd').value = ''; }
+        function closeTeacherModal() { document.getElementById('teacher-modal').classList.add('hidden'); }
         
+        async function verifyTeacher() {
+            const btn = document.getElementById('teacher-login-btn');
+            try {
+                btn.disabled = true;
+                btn.innerText = "驗證中...";
+                
+                const result = await auth.signInWithPopup(provider);
+                const user = result.user;
+
+                if (user.email !== ALLOWED_TEACHER_EMAIL) {
+                    alert("登入失敗：這不是授權的老師帳號！");
+                    await auth.signOut();
+                    return;
+                }
+
+                teacherToken = await user.getIdToken();
+
+                closeTeacherModal(); 
+                await loadDataAndRender(); 
+                updateTeacherProblemFilter(); 
+                showView('teacher-view');
+                
+            } catch (error) {
+                console.error("登入失敗:", error);
+                alert("登入過程出錯，請稍後再試。");
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = `<img class="h-5 w-5 mr-2" src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google">使用 Google 帳號登入`;
+            }
+        }
+        
+        async function teacherLogout() {
+            await auth.signOut();
+            teacherToken = null;
+            showLogin();
+        }
+
         function showCodeModal(subKey) {
             const sub = dbSubmissions[subKey]; if (!sub) return; currentViewingSub = sub;
             const probTitle = dbProblems[sub.pId] ? dbProblems[sub.pId].title : '未知題目';
@@ -872,111 +796,22 @@ except Exception as e:
 
         function closeCodeModal() { document.getElementById('code-modal').classList.add('hidden'); currentViewingSub = null; }
 
-        async function verifyTeacher() {
-            const pwd = document.getElementById('teacher-pwd').value;
-            const hashedInput = simpleHash(pwd);
-            
-            let settings = await fetch(`${FIREBASE_BASE_URL}/settings.json${getAuthQuery()}`).then(r => r.json());
-            let storedHash = (settings && settings.adminPassword) ? settings.adminPassword : 71848938; 
-
-            if (hashedInput === storedHash) {
-                closeTeacherModal(); await loadDataAndRender(); updateTeacherProblemFilter(); showView('teacher-view');
-            } else alert('密碼錯誤');
-        }
-
-        async function changeAdminPassword() {
-            const newPwd = prompt("請輸入新的「老師專區管理密碼」：");
-            if (!newPwd) return;
-            const confirmPwd = prompt("請再次輸入以確認密碼：");
-            if (newPwd !== confirmPwd) { alert("兩次輸入的密碼不一致，修改取消。"); return; }
-            
-            const newHash = simpleHash(newPwd);
-            try {
-                await fetch(`${FIREBASE_BASE_URL}/settings.json${getAuthQuery()}`, { method: 'PATCH', body: JSON.stringify({ adminPassword: newHash }) });
-                alert("✅ 密碼修改成功！下次登入請使用新密碼。");
-            } catch(e) { alert("網路問題導致修改失敗。"); }
-        }
-
-        // 切換教師分籤
         function switchTeacherTab(tab) {
-            ['grades', 'problems', 'leaderboard'].forEach(t => {
-                document.getElementById(`teacher-tab-${t}`).classList.add('hidden');
-                document.getElementById(`tab-btn-${t}`).className = "px-4 py-2 bg-gray-200 text-gray-700 rounded-md font-bold hover:bg-gray-300";
-            });
-            document.getElementById(`teacher-tab-${tab}`).classList.remove('hidden'); 
-            document.getElementById(`tab-btn-${tab}`).className = "px-4 py-2 bg-blue-600 text-white rounded-md font-bold";
+            document.getElementById('teacher-tab-grades').classList.add('hidden'); document.getElementById('teacher-tab-problems').classList.add('hidden');
+            document.getElementById('tab-btn-grades').className = "px-4 py-2 bg-gray-200 text-gray-700 rounded-md font-bold hover:bg-gray-300"; document.getElementById('tab-btn-problems').className = "px-4 py-2 bg-gray-200 text-gray-700 rounded-md font-bold hover:bg-gray-300";
+            document.getElementById(`teacher-tab-${tab}`).classList.remove('hidden'); document.getElementById(`tab-btn-${tab}`).className = "px-4 py-2 bg-blue-600 text-white rounded-md font-bold";
         }
 
         async function loadDataAndRender() {
             const [probRes, subRes, sysRes] = await Promise.all([
-                fetch(`${FIREBASE_BASE_URL}/problems.json${getAuthQuery()}`).then(r => r.json()),
-                fetch(`${FIREBASE_BASE_URL}/submissions.json${getAuthQuery()}`).then(r => r.json()),
-                fetch(`${FIREBASE_BASE_URL}/system.json${getAuthQuery()}`).then(r => r.json())
+                fetch(`${FIREBASE_BASE_URL}/problems.json`).then(r => r.json()),
+                fetch(`${FIREBASE_BASE_URL}/submissions.json`).then(r => r.json()),
+                fetch(`${FIREBASE_BASE_URL}/system.json`).then(r => r.json())
             ]);
             dbProblems = probRes || {}; dbSubmissions = subRes || {}; activeSystemKey = sysRes || null;
-            if (activeSystemKey && activeSystemKey.key) dbSessionStats = await fetch(`${FIREBASE_BASE_URL}/session_stats/${activeSystemKey.key}.json${getAuthQuery()}`).then(r => r.json()) || {};
+            if (activeSystemKey && activeSystemKey.key) dbSessionStats = await fetch(`${FIREBASE_BASE_URL}/session_stats/${activeSystemKey.key}.json`).then(r => r.json()) || {};
             else dbSessionStats = {};
-            renderTeacherTable(); 
-            renderTeacherProblemList(); 
-            renderLeaderboard(); // 確保每次載入都更新龍虎榜
-            renderKeyStatus(); 
-        }
-
-        // 【優化 5】生成並排序龍虎榜
-        function renderLeaderboard() {
-            const tbody = document.getElementById('leaderboard-table-body');
-            tbody.innerHTML = '';
-            const sortMode = document.getElementById('leaderboard-sort').value;
-
-            const studentStats = {};
-            
-            // 計算總分與完成題數
-            Object.values(dbSubmissions).forEach(s => {
-                const key = `${s.cls}-${s.sid}`;
-                if (!studentStats[key]) {
-                    studentStats[key] = { cls: s.cls, sid: s.sid, totalScore: 0, totalAwayTime: 0, completed: 0 };
-                }
-                studentStats[key].totalScore += (s.maxScore || 0);
-                if ((s.maxScore || 0) > 0) studentStats[key].completed += 1;
-            });
-
-            // 取得該學生最近一次的總分心時間
-            Object.keys(dbSessionStats).forEach(key => {
-                if (studentStats[key]) {
-                    studentStats[key].totalAwayTime = Math.floor((dbSessionStats[key].awayTime || 0) / 1000);
-                }
-            });
-
-            let statsArray = Object.values(studentStats);
-
-            // 依照選單進行智慧排序
-            statsArray.sort((a, b) => {
-                if (sortMode === 'score_desc') {
-                    if (b.totalScore !== a.totalScore) return b.totalScore - a.totalScore;
-                    return a.totalAwayTime - b.totalAwayTime; 
-                } else if (sortMode === 'away_asc') {
-                    if (a.totalAwayTime !== b.totalAwayTime) return a.totalAwayTime - b.totalAwayTime;
-                    return b.totalScore - a.totalScore; 
-                } else if (sortMode === 'away_desc') {
-                    if (b.totalAwayTime !== a.totalAwayTime) return b.totalAwayTime - a.totalAwayTime;
-                    return b.totalScore - a.totalScore; 
-                }
-            });
-
-            statsArray.forEach((st, index) => {
-                const tr = document.createElement('tr');
-                // 前三名加上特效
-                const rankClass = index < 3 ? 'text-yellow-500 font-extrabold text-lg' : 'font-bold text-gray-700';
-                tr.innerHTML = `
-                    <td class="py-3 px-4 border-b ${rankClass}">${index + 1}</td>
-                    <td class="py-3 px-4 border-b">${st.cls}</td>
-                    <td class="py-3 px-4 border-b font-bold">${st.sid}</td>
-                    <td class="py-3 px-4 border-b font-mono">${st.completed} 題</td>
-                    <td class="py-3 px-4 border-b font-bold text-green-600">${st.totalScore}</td>
-                    <td class="py-3 px-4 border-b font-bold text-red-500">${st.totalAwayTime} 秒</td>
-                `;
-                tbody.appendChild(tr);
-            });
+            renderTeacherTable(); renderTeacherProblemList(); renderKeyStatus(); 
         }
 
         function updateTeacherProblemFilter() {
@@ -984,6 +819,43 @@ except Exception as e:
             let probsArray = Object.entries(dbProblems).map(([pId, prob]) => ({ pId, ...prob }));
             probsArray.sort((a, b) => { const idA = a.id || a.title || ""; const idB = b.id || b.title || ""; return idA.localeCompare(idB, undefined, { numeric: true, sensitivity: 'base' }); });
             probsArray.forEach(prob => { filter.innerHTML += `<option value="${prob.pId}">${prob.title}</option>`; });
+        }
+
+        // 優化 5: 新增「龍虎榜」生成邏輯
+        function generateLeaderboard(type) {
+            const studentStats = {};
+            Object.values(dbSubmissions).forEach(sub => {
+                const key = `${sub.cls}-${sub.sid}`;
+                if (!studentStats[key]) {
+                    studentStats[key] = { cls: sub.cls, sid: sub.sid, totalScore: 0, awayTime: 0, completedCount: 0 };
+                }
+                studentStats[key].totalScore += (sub.maxScore || 0);
+                if (sub.attempts > 0) studentStats[key].completedCount += 1;
+                studentStats[key].awayTime = Math.max(studentStats[key].awayTime, sub.awayTime || 0); 
+            });
+
+            let sorted = Object.values(studentStats);
+            let title = "";
+            
+            if (type === 'score') {
+                title = "🏆 綜合高分龍虎榜 (依總分排序)";
+                sorted.sort((a, b) => b.totalScore - a.totalScore || a.awayTime - b.awayTime);
+            } else {
+                title = "🎯 最高專注排行榜 (依離開視窗時間排序)";
+                sorted = sorted.filter(s => s.completedCount > 0);
+                sorted.sort((a, b) => a.awayTime - b.awayTime || b.totalScore - a.totalScore);
+            }
+
+            let msg = `${title}\n──────────────────────\n`;
+            if (sorted.length === 0) {
+                msg += "目前尚無學生成績資料。";
+            } else {
+                sorted.slice(0, 10).forEach((s, idx) => { // 取前10名
+                    msg += `第 ${idx+1} 名 | ${s.cls}班 ${s.sid}號\n`;
+                    msg += `   ↳ 總分: ${s.totalScore} | 離開視窗: ${s.awayTime} 秒 | 完成題數: ${s.completedCount}\n\n`;
+                });
+            }
+            alert(msg);
         }
 
         function renderTeacherTable() {
@@ -1024,6 +896,7 @@ except Exception as e:
         }
 
         async function saveProblem() {
+            if(!teacherToken) return alert("請先登入");
             const title = document.getElementById('new-prob-title').value.trim(); const desc = document.getElementById('new-prob-desc').value.trim(); const expected_output = document.getElementById('new-prob-expected').value.trim(); const defaultCode = teacherDefaultEditor.getValue(); const testScript = teacherTestEditor.getValue();
             if(!title || !desc || !testScript.includes('{STUDENT_CODE}')) { alert("請填寫完整資訊，且測試腳本必須包含 {STUDENT_CODE} 標籤！"); return; }
             const pId = editingProblemId ? editingProblemId : 'prob_' + Date.now();
@@ -1059,6 +932,7 @@ except Exception as e:
         function toggleSelectAll(source) { document.querySelectorAll('.problem-checkbox').forEach(cb => cb.checked = source.checked); updateSelectedCount(); }
 
         async function bulkDeleteProblems() {
+            if(!teacherToken) return alert("請先登入");
             const checkboxes = document.querySelectorAll('.problem-checkbox:checked'); if (checkboxes.length === 0) return;
             if (!confirm(`⚠️ 警告：確定要刪除這 ${checkboxes.length} 題嗎？\n刪除後將無法復原！`)) return;
             document.getElementById('bulkDeleteBtn').textContent = "刪除中..."; document.getElementById('bulkDeleteBtn').disabled = true;
@@ -1071,13 +945,21 @@ except Exception as e:
         }
 
         async function deleteProblem(pId) {
+            if(!teacherToken) return alert("請先登入");
             if(confirm("確定要單獨刪除此題目嗎？")) {
                 delete dbProblems[pId]; await fetch(`${FIREBASE_BASE_URL}/problems/${pId}.json${getAuthQuery()}`, { method: 'DELETE' });
                 if (editingProblemId === pId) cancelEdit(); renderTeacherProblemList(); updateTeacherProblemFilter(); renderTeacherTable();
             }
         }
 
-        async function clearSubmissions() { if(confirm('確定要清除所有學生成績嗎？此操作無法復原！')) { dbSubmissions = {}; await fetch(`${FIREBASE_BASE_URL}/submissions.json${getAuthQuery()}`, { method: 'DELETE' }); renderTeacherTable(); } }
+        async function clearSubmissions() { 
+            if(!teacherToken) return alert("請先登入");
+            if(confirm('確定要清除所有學生成績嗎？此操作無法復原！')) { 
+                dbSubmissions = {}; 
+                await fetch(`${FIREBASE_BASE_URL}/submissions.json${getAuthQuery()}`, { method: 'DELETE' }); 
+                renderTeacherTable(); 
+            } 
+        }
 
         function downloadJSONTemplate() {
             const template = [{ "title": "加法運算 (無腦穩定比對)", "desc": "請寫一個程式，印出 10 加 5 的結果。", "expected_output": "15", "defaultCode": "a = 10\nb = 5\n# 在這裡寫下你的程式碼\n", "testScript": defaultBeginnerTestScript }];
@@ -1087,6 +969,7 @@ except Exception as e:
         }
 
         async function handleImportJSON(event) {
+            if(!teacherToken) return alert("請先登入");
             const file = event.target.files[0]; if (!file) return;
             const reader = new FileReader();
             reader.onload = async function(e) {
