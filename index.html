@@ -582,6 +582,9 @@ builtins.input = custom_input
             }
         }
 
+// 新增一個變數來追蹤我們自訂的監聽器，避免誤刪 Ace Editor 的內建事件
+        let currentEditorChangeHandler = null;
+
         function openProblem(pId) {
             currentProblemId = pId; const prob = dbProblems[pId]; const subKey = `${currentUser.key}_${pId}`;
             if (!dbSubmissions[subKey]) dbSubmissions[subKey] = { cls: currentUser.cls, sid: currentUser.sid, name: currentUser.name, pId: pId, maxScore: 0, attempts: 0, history: [] };
@@ -595,11 +598,16 @@ builtins.input = custom_input
             studentEditor.setValue(codeToLoad, -1);
             document.getElementById('result-message').classList.add('hidden'); clearTerminal(); updateSubmitStatus(); showView('student-view');
 
-            // 優化 2: 監聽編輯器變更，自動記錄草稿
-            studentEditor.session.removeAllListeners('change');
-            studentEditor.session.on('change', function() {
+            
+            if (currentEditorChangeHandler) {
+                studentEditor.session.off('change', currentEditorChangeHandler);
+            }
+
+            currentEditorChangeHandler = function() {
                 dbSubmissions[subKey].draftCode = studentEditor.getValue();
-            });
+            };
+
+            studentEditor.session.on('change', currentEditorChangeHandler);
         }
 
         function updateSubmitStatus() {
