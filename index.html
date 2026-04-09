@@ -5,6 +5,32 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Python 課堂自動評分系統</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        apple: {
+                            bgLight: '#f5f5f7',
+                            bgDark: '#000000',
+                            cardLight: '#ffffff',
+                            cardDark: '#1d1d1f',
+                            textLight: '#1d1d1f',
+                            textDark: '#ffffff',
+                            textSecLight: 'rgba(0, 0, 0, 0.8)',
+                            textSecDark: 'rgba(255, 255, 255, 0.8)',
+                            blue: '#0071e3',
+                            linkLight: '#0066cc',
+                            linkDark: '#2997ff',
+                            inputLight: '#fafafc',
+                            inputDark: '#272729'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
     <script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.2/ace.js"></script>
     
@@ -12,21 +38,11 @@
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
 
     <style>
-        /* Apple Design System Base Typography & Colors */
-        :root {
-            --apple-blue: #0071e3;
-            --apple-link-light: #0066cc;
-            --apple-link-dark: #2997ff;
-            --apple-bg-light: #f5f5f7;
-            --apple-bg-dark: #000000;
-            --apple-text-light: #1d1d1f;
-            --apple-text-dark: #ffffff;
-        }
-
+        /* Apple Design System Base Typography */
         body {
             font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
-            background-color: var(--apple-bg-light);
-            color: var(--apple-text-light);
+            background-color: #f5f5f7;
+            color: #1d1d1f;
             letter-spacing: -0.374px;
             line-height: 1.47;
             -webkit-font-smoothing: antialiased;
@@ -36,21 +52,22 @@
         h1, h2, h3, h4, h5, h6 {
             font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", Helvetica, Arial, sans-serif;
             letter-spacing: -0.28px;
+            color: #1d1d1f;
+        }
+
+        /* Dark Mode Global Overrides */
+        body.dark-mode {
+            background-color: #000000;
+            color: #ffffff;
+        }
+        body.dark-mode h1, body.dark-mode h2, body.dark-mode h3, body.dark-mode h4, body.dark-mode h5, body.dark-mode h6 {
+            color: #ffffff;
         }
 
         h1 { font-size: 56px; font-weight: 600; line-height: 1.07; }
         h2 { font-size: 40px; font-weight: 600; line-height: 1.10; }
         h3 { font-size: 28px; font-weight: 400; line-height: 1.14; }
 
-        /* Dark Mode Overrides */
-        body.dark-mode { background-color: var(--apple-bg-dark); color: var(--apple-text-dark); }
-        body.dark-mode .apple-card { background-color: #272729 !important; box-shadow: none !important; }
-        body.dark-mode .apple-input { background-color: #373739 !important; color: #ffffff !important; border-color: transparent !important; }
-        body.dark-mode .text-gray-800, body.dark-mode .text-gray-700, body.dark-mode .text-gray-600 { color: #d1d5db !important; }
-        body.dark-mode .text-gray-500 { color: #9ca3af !important; }
-        body.dark-mode .bg-white, body.dark-mode .bg-gray-50, body.dark-mode .bg-gray-100 { background-color: #1d1d1f !important; }
-        body.dark-mode .border, body.dark-mode .border-b, body.dark-mode .border-t { border-color: #373739 !important; }
-        
         /* Apple Specific Components */
         .apple-nav {
             background-color: rgba(0, 0, 0, 0.8);
@@ -65,13 +82,19 @@
         .apple-card {
             background-color: #ffffff;
             border-radius: 8px;
-            box-shadow: 0px 5px 30px rgba(0, 0, 0, 0.22);
+            box-shadow: 0px 5px 30px rgba(0, 0, 0, 0.1);
             border: none;
             padding: 40px;
+            color: #1d1d1f;
+        }
+        body.dark-mode .apple-card {
+            background-color: #1d1d1f;
+            color: #ffffff;
+            box-shadow: none;
         }
 
         .apple-btn-primary {
-            background-color: var(--apple-blue);
+            background-color: #0071e3;
             color: #ffffff;
             padding: 8px 15px;
             border-radius: 8px;
@@ -80,19 +103,19 @@
             border: 1px solid transparent;
             transition: all 0.2s;
         }
-        .apple-btn-primary:active { background-color: #ededf2; color: #000; }
-        .apple-btn-primary:focus { outline: 2px solid var(--apple-blue); outline-offset: 2px; }
+        .apple-btn-primary:active { background-color: #ededf2; color: #000000; }
+        .apple-btn-primary:focus { outline: 2px solid #0071e3; outline-offset: 2px; }
 
         .apple-btn-pill {
             background-color: transparent;
-            color: var(--apple-link-light);
-            border: 1px solid var(--apple-link-light);
+            color: #0066cc;
+            border: 1px solid #0066cc;
             border-radius: 980px;
             padding: 6px 16px;
             font-size: 14px;
             transition: all 0.2s;
         }
-        body.dark-mode .apple-btn-pill { color: var(--apple-link-dark); border-color: var(--apple-link-dark); }
+        body.dark-mode .apple-btn-pill { color: #2997ff; border-color: #2997ff; }
         .apple-btn-pill:hover { text-decoration: underline; }
 
         .apple-input {
@@ -101,11 +124,19 @@
             border-radius: 11px;
             padding: 10px 14px;
             font-size: 17px;
-            color: rgba(0, 0, 0, 0.8);
+            color: #1d1d1f;
             width: 100%;
             transition: all 0.2s;
         }
-        .apple-input:focus { outline: none; border-color: transparent; box-shadow: 0 0 0 2px var(--apple-blue); }
+        body.dark-mode .apple-input {
+            background-color: #272729;
+            color: #ffffff;
+            border-color: #373739;
+        }
+        .apple-input:focus { outline: none; border-color: transparent; box-shadow: 0 0 0 2px #0071e3; }
+        
+        .apple-input::placeholder { color: rgba(0,0,0,0.48); }
+        body.dark-mode .apple-input::placeholder { color: rgba(255,255,255,0.48); }
 
         .ace_editor { border-radius: 8px; font-family: 'Menlo', 'Monaco', monospace; }
         #terminal-output::-webkit-scrollbar { width: 8px; }
@@ -121,10 +152,10 @@
         </div>
         <div class="flex items-center space-x-6">
             <button id="theme-toggle-btn" onclick="toggleTheme()" class="hover:underline transition">🌙 暗色模式</button>
-            <div id="away-timer-display" class="hidden text-white font-bold bg-red-500/80 px-3 py-1 rounded-[980px] shadow-sm">
+            <div id="away-timer-display" class="hidden text-white font-bold bg-red-600 px-3 py-1 rounded-[980px] shadow-sm">
                 ⚠️ 離開視窗: 0 秒
             </div>
-            <button onclick="showTeacherLogin()" class="opacity-70 hover:opacity-100 transition hover:underline">老師專區</button>
+            <button onclick="showTeacherLogin()" class="opacity-90 hover:opacity-100 hover:text-white transition hover:underline">老師專區</button>
         </div>
     </header>
 
@@ -132,35 +163,35 @@
         
         <div id="loading-view" class="text-center py-20">
             <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0071e3] mx-auto mb-4"></div>
-            <p class="text-gray-500 font-medium">系統初始化中（正在載入 Python 引擎與資料庫）...</p>
+            <p class="text-apple-textSecLight dark:text-apple-textSecDark font-medium">系統初始化中（正在載入 Python 引擎與資料庫）...</p>
         </div>
 
         <div id="login-view" class="hidden apple-card max-w-md mx-auto">
             <h3 class="mb-8 text-center" style="font-size: 28px;">進入課堂</h3>
             <div class="space-y-6">
                 <div>
-                    <label class="block text-[12px] font-semibold mb-2 opacity-80">班級</label>
+                    <label class="block text-[12px] font-semibold mb-2 text-apple-textSecLight dark:text-apple-textSecDark">班級</label>
                     <input type="text" id="student-class" class="apple-input" placeholder="例如：3A">
                 </div>
                 <div>
-                    <label class="block text-[12px] font-semibold mb-2 opacity-80">學號</label>
+                    <label class="block text-[12px] font-semibold mb-2 text-apple-textSecLight dark:text-apple-textSecDark">學號</label>
                     <input type="text" id="student-id" class="apple-input" placeholder="例如：01">
                 </div>
                 
-                <div class="pt-4 mt-4 border-t border-gray-100 dark:border-gray-800">
+                <div class="pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
                     <label class="block text-[12px] font-semibold mb-2 text-[#0071e3]">課堂密碼 (6位數字)</label>
-                    <input type="text" id="student-key" maxlength="6" class="apple-input" style="background-color: rgba(0, 113, 227, 0.05);" placeholder="請向老師索取本節課密碼">
+                    <input type="text" id="student-key" maxlength="6" class="apple-input bg-[#f0f7ff] dark:bg-[#1a2b4c]" placeholder="請向老師索取本節課密碼">
                 </div>
 
                 <button id="login-btn" onclick="loginStudent()" class="apple-btn-primary w-full mt-4">登入</button>
             </div>
-            <p id="login-error" class="text-red-500 text-[14px] mt-4 hidden text-center"></p>
+            <p id="login-error" class="text-red-600 dark:text-red-400 text-[14px] font-medium mt-4 hidden text-center"></p>
         </div>
 
         <div id="problem-select-view" class="hidden apple-card max-w-2xl mx-auto">
-            <div class="flex justify-between items-end mb-8">
+            <div class="flex justify-between items-end mb-8 border-b border-gray-200 dark:border-gray-700 pb-4">
                 <h2 style="font-size: 40px; line-height: 1.10;">請選擇題目</h2>
-                <span class="text-[12px] opacity-60 font-medium" id="student-info-display-1"></span>
+                <span class="text-[14px] font-medium text-apple-textSecLight dark:text-apple-textSecDark" id="student-info-display-1"></span>
             </div>
             <div class="mb-8">
                 <input type="text" id="student-problem-search" placeholder="🔍 搜尋題目 (名稱或編號)..." class="apple-input" oninput="renderStudentProblemList()">
@@ -170,204 +201,204 @@
 
         <div id="student-view" class="hidden space-y-8">
             <div class="apple-card">
-                <div class="flex flex-col md:flex-row justify-between items-center mb-8 space-y-4 md:space-y-0">
+                <div class="flex flex-col md:flex-row justify-between items-center mb-8 space-y-4 md:space-y-0 border-b border-gray-200 dark:border-gray-700 pb-4">
                     <h3 id="problem-title" style="font-size: 28px;"></h3>
                     <div class="flex items-center space-x-3">
                         <button onclick="navigateProblem(-1)" class="apple-btn-pill">⬅️ 上一題</button>
                         <button onclick="navigateProblem(1)" class="apple-btn-pill">下一題 ➡️</button>
-                        <span class="text-[12px] opacity-60 hidden md:inline-block" id="student-info-display-2"></span>
-                        <button onclick="showView('problem-select-view'); renderStudentProblemList();" class="text-[#0071e3] text-[14px] hover:underline">返回列表</button>
+                        <span class="text-[12px] font-medium text-apple-textSecLight dark:text-apple-textSecDark hidden md:inline-block mx-2" id="student-info-display-2"></span>
+                        <button onclick="showView('problem-select-view'); renderStudentProblemList();" class="text-[#0071e3] text-[14px] hover:underline font-medium">返回列表</button>
                     </div>
                 </div>
                 
-                <div class="bg-[#fafafc] dark:bg-[#262628] p-6 rounded-[11px] mb-6 whitespace-pre-wrap font-mono text-[14px] leading-relaxed" id="problem-desc"></div>
+                <div class="bg-[#fafafc] dark:bg-[#272729] p-6 rounded-[11px] mb-6 whitespace-pre-wrap font-mono text-[14px] leading-relaxed text-apple-textLight dark:text-apple-textDark border border-gray-200 dark:border-gray-700" id="problem-desc"></div>
                 
                 <div id="expected-output-container" class="mt-4 mb-8 hidden">
-                    <h4 class="text-[14px] font-semibold mb-2 opacity-80">💡 預期輸出範例 (Expected Output)：</h4>
-                    <pre id="problem-expected-output" class="bg-[#fafafc] dark:bg-[#262628] p-4 rounded-[11px] text-[14px] font-mono whitespace-pre-wrap border-l-4 border-[#0071e3]"></pre>
+                    <h4 class="text-[14px] font-semibold mb-2 text-apple-textSecLight dark:text-apple-textSecDark">💡 預期輸出範例 (Expected Output)：</h4>
+                    <pre id="problem-expected-output" class="bg-[#fafafc] dark:bg-[#272729] p-4 rounded-[11px] text-[14px] font-mono whitespace-pre-wrap border-l-4 border-[#0071e3] text-apple-textLight dark:text-apple-textDark"></pre>
                 </div>
 
-                <div class="mb-3 flex justify-between text-[14px] opacity-80">
+                <div class="mb-3 flex justify-between text-[14px] text-apple-textSecLight dark:text-apple-textSecDark">
                     <span class="font-medium">你的程式碼：</span>
-                    <span id="submission-count" class="font-medium text-[#0071e3]">總遞交次數：0</span>
+                    <span id="submission-count" class="font-bold text-[#0071e3]">總遞交次數：0</span>
                 </div>
                 
-                <div id="student-editor" class="w-full h-80 border-none shadow-[inset_0_2px_4px_rgba(0,0,0,0.06)] bg-[#fafafc]"></div>
+                <div id="student-editor" class="w-full h-80 border border-gray-300 dark:border-gray-700 rounded-[8px]"></div>
                 
-                <div class="mt-6 rounded-[11px] overflow-hidden shadow-sm">
+                <div class="mt-6 rounded-[11px] overflow-hidden shadow-sm border border-gray-300 dark:border-gray-700">
                     <div class="bg-[#1d1d1f] text-white px-4 py-3 flex justify-between items-center">
                         <span class="text-[12px] font-medium flex items-center tracking-wide">
                             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M4 17h16a2 2 0 002-2V5a2 2 0 00-2-2H4a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
                             Terminal
                         </span>
-                        <button onclick="clearTerminal()" class="text-[12px] text-gray-400 hover:text-white transition">清除紀錄</button>
+                        <button onclick="clearTerminal()" class="text-[12px] text-gray-300 hover:text-white transition">清除紀錄</button>
                     </div>
                     <div id="terminal-output" class="w-full h-40 bg-[#000000] text-[#34d399] font-mono p-4 overflow-y-auto whitespace-pre-wrap text-[14px] leading-relaxed"></div>
                 </div>
                 
                 <div class="mt-8 flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
                     <div class="space-x-3 flex w-full md:w-auto">
-                        <button id="test-btn" onclick="testCode()" class="bg-[#1d1d1f] dark:bg-[#373739] text-white px-[15px] py-[8px] rounded-[8px] text-[17px] hover:brightness-110 transition flex-1 md:flex-none">🔍 測試程式碼</button>
-                        <button id="submit-btn" onclick="submitCode()" class="apple-btn-primary flex-1 md:flex-none">🚀 正式遞交</button>
+                        <button id="test-btn" onclick="testCode()" class="bg-[#1d1d1f] dark:bg-[#f5f5f7] text-white dark:text-[#1d1d1f] px-[15px] py-[8px] rounded-[8px] text-[17px] font-medium hover:opacity-90 transition flex-1 md:flex-none">🔍 測試程式碼</button>
+                        <button id="submit-btn" onclick="submitCode()" class="apple-btn-primary flex-1 md:flex-none font-medium">🚀 正式遞交</button>
                     </div>
-                    <div id="result-message" class="font-medium text-[17px] hidden text-center md:text-right w-full md:w-auto"></div>
+                    <div id="result-message" class="font-bold text-[17px] hidden text-center md:text-right w-full md:w-auto"></div>
                 </div>
             </div>
         </div>
 
         <div id="teacher-view" class="hidden apple-card">
-            <div class="flex justify-between items-center mb-10 pb-6 border-b border-gray-200 dark:border-gray-800">
+            <div class="flex justify-between items-center mb-10 pb-6 border-b border-gray-200 dark:border-gray-700">
                 <h2 style="font-size: 40px; line-height: 1.10;">老師專區</h2>
                 <div class="space-x-4">
-                    <button onclick="loadDataAndRender()" class="apple-btn-pill border-transparent text-[#1d1d1f] dark:text-white">重新整理資料</button>
-                    <button onclick="teacherLogout()" class="text-[#0071e3] text-[14px] hover:underline">登出後台</button>
+                    <button onclick="loadDataAndRender()" class="apple-btn-pill border-gray-400 text-apple-textLight dark:text-apple-textDark">重新整理資料</button>
+                    <button onclick="teacherLogout()" class="text-[#0071e3] text-[14px] hover:underline font-medium">登出後台</button>
                 </div>
             </div>
 
-            <div class="bg-[#fafafc] dark:bg-[#262628] p-6 rounded-[11px] mb-10 flex flex-col md:flex-row justify-between items-center">
+            <div class="bg-[#fafafc] dark:bg-[#272729] p-6 rounded-[11px] mb-10 flex flex-col md:flex-row justify-between items-center border border-gray-200 dark:border-gray-700">
                 <div class="mb-4 md:mb-0">
-                    <h4 class="text-[17px] font-semibold flex items-center">
+                    <h4 class="text-[17px] font-semibold flex items-center text-apple-textLight dark:text-apple-textDark">
                         課堂密碼控制 (防作弊與計時器重置)
                     </h4>
-                    <p class="text-[14px] mt-1 opacity-70">目前狀態：<span id="key-status-text" class="font-medium text-red-500">讀取中...</span></p>
+                    <p class="text-[14px] mt-1 text-apple-textSecLight dark:text-apple-textSecDark">目前狀態：<span id="key-status-text" class="font-bold text-red-600 dark:text-red-400">讀取中...</span></p>
                     <div class="flex items-center mt-3">
-                        <span class="text-[14px] font-medium mr-3 opacity-80">學生登入密碼：</span>
-                        <span class="text-3xl font-mono tracking-[0.2em] font-light text-[#1d1d1f] dark:text-white" id="current-active-key">------</span>
+                        <span class="text-[14px] font-medium mr-3 text-apple-textSecLight dark:text-apple-textSecDark">學生登入密碼：</span>
+                        <span class="text-3xl font-mono tracking-[0.2em] font-bold text-[#1d1d1f] dark:text-white" id="current-active-key">------</span>
                     </div>
                 </div>
                 <div class="space-x-3 flex">
-                    <button onclick="generateClassroomKey()" class="apple-btn-primary">生成新密碼 (120分鐘)</button>
-                    <button onclick="disableClassroomKey()" class="bg-[#1d1d1f] dark:bg-[#373739] text-white px-[15px] py-[8px] rounded-[8px] text-[17px] hover:brightness-110 transition">立即停用</button>
+                    <button onclick="generateClassroomKey()" class="apple-btn-primary font-medium">生成新密碼 (120分鐘)</button>
+                    <button onclick="disableClassroomKey()" class="bg-[#1d1d1f] dark:bg-[#f5f5f7] text-white dark:text-[#1d1d1f] px-[15px] py-[8px] rounded-[8px] text-[17px] font-medium hover:opacity-90 transition">立即停用</button>
                 </div>
             </div>
 
-            <div class="flex space-x-2 mb-8 p-1 bg-[#fafafc] dark:bg-[#262628] rounded-[11px] inline-flex">
-                <button onclick="switchTeacherTab('grades')" id="tab-btn-grades" class="px-5 py-2 bg-white dark:bg-[#373739] shadow-sm rounded-[8px] text-[14px] font-medium transition">成績與防作弊監控</button>
-                <button onclick="switchTeacherTab('problems')" id="tab-btn-problems" class="px-5 py-2 text-[14px] font-medium opacity-70 hover:opacity-100 transition rounded-[8px]">題目管理 (出題)</button>
+            <div class="flex space-x-2 mb-8 p-1 bg-[#fafafc] dark:bg-[#272729] rounded-[11px] inline-flex border border-gray-200 dark:border-gray-700">
+                <button onclick="switchTeacherTab('grades')" id="tab-btn-grades" class="px-5 py-2 bg-white dark:bg-[#1d1d1f] shadow-sm rounded-[8px] text-[14px] font-bold text-apple-textLight dark:text-apple-textDark transition">成績與防作弊監控</button>
+                <button onclick="switchTeacherTab('problems')" id="tab-btn-problems" class="px-5 py-2 text-[14px] font-medium text-apple-textSecLight dark:text-apple-textSecDark hover:text-apple-textLight dark:hover:text-apple-textDark transition rounded-[8px]">題目管理 (出題)</button>
             </div>
 
             <div id="teacher-tab-grades">
                 <div class="mb-6 flex space-x-3 items-center">
-                    <span class="text-[14px] font-medium opacity-80">🏆 產生龍虎榜：</span>
+                    <span class="text-[14px] font-bold text-apple-textLight dark:text-apple-textDark">🏆 產生龍虎榜：</span>
                     <button onclick="generateLeaderboard('score')" class="apple-btn-pill">綜合高分榜</button>
                     <button onclick="generateLeaderboard('focus')" class="apple-btn-pill">最高專注榜</button>
                 </div>
 
                 <div class="mb-6 flex items-center space-x-3">
-                    <label class="text-[14px] font-medium opacity-80">選擇要查看的題目成績：</label>
-                    <select id="teacher-problem-filter" onchange="renderTeacherTable()" class="apple-input py-1 px-3 w-auto text-[14px]">
+                    <label class="text-[14px] font-bold text-apple-textLight dark:text-apple-textDark">選擇要查看的題目成績：</label>
+                    <select id="teacher-problem-filter" onchange="renderTeacherTable()" class="apple-input py-1 px-3 w-auto text-[14px] font-medium">
                         <option value="all">全部題目</option>
                     </select>
                 </div>
                 
-                <div class="overflow-x-auto">
+                <div class="overflow-x-auto rounded-[8px] border border-gray-200 dark:border-gray-700">
                     <table class="min-w-full text-[14px]">
-                        <thead class="border-b border-gray-200 dark:border-gray-800">
+                        <thead class="bg-[#fafafc] dark:bg-[#272729] border-b border-gray-200 dark:border-gray-700">
                             <tr>
-                                <th class="py-3 px-4 text-left font-medium opacity-60">班級</th>
-                                <th class="py-3 px-4 text-left font-medium opacity-60">學號</th>
-                                <th class="py-3 px-4 text-left font-medium opacity-60">題目</th>
-                                <th class="py-3 px-4 text-left font-medium opacity-60">系統評分</th>
-                                <th class="py-3 px-4 text-left font-medium opacity-60">遞交次數</th>
-                                <th class="py-3 px-4 text-left font-medium opacity-60">最後遞交時間</th>
-                                <th class="py-3 px-4 text-left font-medium opacity-60">分心時間</th>
-                                <th class="py-3 px-4 text-center font-medium opacity-60">歷次記錄</th>
+                                <th class="py-3 px-4 text-left font-bold text-apple-textLight dark:text-apple-textDark">班級</th>
+                                <th class="py-3 px-4 text-left font-bold text-apple-textLight dark:text-apple-textDark">學號</th>
+                                <th class="py-3 px-4 text-left font-bold text-apple-textLight dark:text-apple-textDark">題目</th>
+                                <th class="py-3 px-4 text-left font-bold text-apple-textLight dark:text-apple-textDark">系統評分</th>
+                                <th class="py-3 px-4 text-left font-bold text-apple-textLight dark:text-apple-textDark">遞交次數</th>
+                                <th class="py-3 px-4 text-left font-bold text-apple-textLight dark:text-apple-textDark">最後遞交時間</th>
+                                <th class="py-3 px-4 text-left font-bold text-apple-textLight dark:text-apple-textDark">分心時間</th>
+                                <th class="py-3 px-4 text-center font-bold text-apple-textLight dark:text-apple-textDark">歷次記錄</th>
                             </tr>
                         </thead>
-                        <tbody id="teacher-table-body" class="divide-y divide-gray-100 dark:divide-gray-800"></tbody>
+                        <tbody id="teacher-table-body" class="divide-y divide-gray-200 dark:divide-gray-700"></tbody>
                     </table>
                 </div>
-                <button onclick="clearSubmissions()" class="mt-6 text-red-500 text-[12px] hover:underline">⚠ 清除所有學生成績</button>
+                <button onclick="clearSubmissions()" class="mt-6 text-red-600 dark:text-red-400 font-bold text-[12px] hover:underline">⚠ 清除所有學生成績</button>
             </div>
 
             <div id="teacher-tab-problems" class="hidden space-y-10">
-                <div class="bg-[#fafafc] dark:bg-[#262628] p-6 rounded-[11px] flex flex-col md:flex-row justify-between items-center">
+                <div class="bg-[#fafafc] dark:bg-[#272729] p-6 rounded-[11px] flex flex-col md:flex-row justify-between items-center border border-gray-200 dark:border-gray-700">
                     <div class="mb-4 md:mb-0">
-                        <h4 class="text-[17px] font-semibold">批次匯入題目</h4>
-                        <p class="text-[14px] opacity-70">請上傳包含題目資料的 JSON 檔案。</p>
+                        <h4 class="text-[17px] font-bold text-apple-textLight dark:text-apple-textDark">批次匯入題目</h4>
+                        <p class="text-[14px] text-apple-textSecLight dark:text-apple-textSecDark mt-1">請上傳包含題目資料的 JSON 檔案。</p>
                     </div>
                     <div class="flex items-center">
                         <input type="file" id="import-json-file" accept=".json" class="hidden" onchange="handleImportJSON(event)">
-                        <button onclick="document.getElementById('import-json-file').click()" class="apple-btn-primary">
+                        <button onclick="document.getElementById('import-json-file').click()" class="apple-btn-primary font-medium">
                             上傳 JSON 匯入
                         </button>
-                        <button onclick="downloadJSONTemplate()" class="text-[#0071e3] ml-4 text-[14px] hover:underline">
+                        <button onclick="downloadJSONTemplate()" class="text-[#0071e3] ml-4 text-[14px] font-bold hover:underline">
                             下載範例格式
                         </button>
                     </div>
                 </div>
 
-                <div class="border border-gray-200 dark:border-gray-800 p-8 rounded-[11px]" id="problem-editor-section">
-                    <h4 class="text-[21px] font-semibold mb-6" id="editor-form-title">新增/編輯題目</h4>
+                <div class="border border-gray-200 dark:border-gray-700 p-8 rounded-[11px]" id="problem-editor-section">
+                    <h4 class="text-[21px] font-bold mb-6 text-apple-textLight dark:text-apple-textDark" id="editor-form-title">新增/編輯題目</h4>
                     <div class="space-y-6">
-                        <div><label class="block font-medium mb-2 text-[14px]">題目名稱</label><input type="text" id="new-prob-title" class="apple-input"></div>
-                        <div><label class="block font-medium mb-2 text-[14px]">題目描述</label><textarea id="new-prob-desc" class="apple-input h-24 font-mono"></textarea></div>
+                        <div><label class="block font-bold mb-2 text-[14px] text-apple-textLight dark:text-apple-textDark">題目名稱</label><input type="text" id="new-prob-title" class="apple-input"></div>
+                        <div><label class="block font-bold mb-2 text-[14px] text-apple-textLight dark:text-apple-textDark">題目描述</label><textarea id="new-prob-desc" class="apple-input h-24 font-mono"></textarea></div>
                         <div>
-                            <label class="block font-medium mb-2 text-[14px]">預期輸出範例 (可選)</label>
+                            <label class="block font-bold mb-2 text-[14px] text-apple-textLight dark:text-apple-textDark">預期輸出範例 (可選)</label>
                             <textarea id="new-prob-expected" class="apple-input h-16 font-mono"></textarea>
                         </div>
                         <div>
-                            <label class="block font-medium mb-2 text-[14px]">學生預設程式碼</label>
-                            <div id="teacher-default-editor" class="w-full h-32 rounded-[8px] overflow-hidden"></div>
+                            <label class="block font-bold mb-2 text-[14px] text-apple-textLight dark:text-apple-textDark">學生預設程式碼</label>
+                            <div id="teacher-default-editor" class="w-full h-32 rounded-[8px] overflow-hidden border border-gray-300 dark:border-gray-700"></div>
                         </div>
                         <div>
-                            <label class="block font-medium mb-2 text-[14px]">測試腳本 (Python)</label>
-                            <div id="teacher-test-editor" class="w-full h-64 rounded-[8px] overflow-hidden"></div>
+                            <label class="block font-bold mb-2 text-[14px] text-apple-textLight dark:text-apple-textDark">測試腳本 (Python)</label>
+                            <div id="teacher-test-editor" class="w-full h-64 rounded-[8px] overflow-hidden border border-gray-300 dark:border-gray-700"></div>
                         </div>
-                        <div class="flex space-x-3 pt-4">
-                            <button onclick="saveProblem()" id="save-prob-btn" class="apple-btn-primary">儲存題目</button>
-                            <button onclick="cancelEdit()" id="cancel-edit-btn" class="hidden apple-btn-pill">取消編輯</button>
+                        <div class="flex space-x-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+                            <button onclick="saveProblem()" id="save-prob-btn" class="apple-btn-primary font-medium">儲存題目</button>
+                            <button onclick="cancelEdit()" id="cancel-edit-btn" class="hidden apple-btn-pill border-gray-400 text-apple-textLight dark:text-apple-textDark">取消編輯</button>
                         </div>
                     </div>
                 </div>
 
                 <div>
-                    <div class="flex justify-between items-center border-b border-gray-200 dark:border-gray-800 pb-4 mb-4">
-                        <h4 class="text-[21px] font-semibold">現有題目列表</h4>
-                        <div class="flex items-center space-x-3 bg-[#fafafc] dark:bg-[#262628] px-3 py-2 rounded-[11px]" id="bulkDeleteContainer">
-                            <label class="flex items-center cursor-pointer text-[12px] font-medium">
+                    <div class="flex justify-between items-center border-b border-gray-200 dark:border-gray-700 pb-4 mb-4">
+                        <h4 class="text-[21px] font-bold text-apple-textLight dark:text-apple-textDark">現有題目列表</h4>
+                        <div class="flex items-center space-x-3 bg-[#fafafc] dark:bg-[#272729] px-3 py-2 rounded-[11px] border border-gray-200 dark:border-gray-700" id="bulkDeleteContainer">
+                            <label class="flex items-center cursor-pointer text-[14px] font-bold text-apple-textLight dark:text-apple-textDark">
                                 <input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this)" class="w-4 h-4 mr-2 rounded">
                                 全選
                             </label>
-                            <button id="bulkDeleteBtn" onclick="bulkDeleteProblems()" class="text-red-500 text-[12px] hover:underline opacity-50 cursor-not-allowed" disabled>
+                            <button id="bulkDeleteBtn" onclick="bulkDeleteProblems()" class="text-red-600 dark:text-red-400 font-bold text-[14px] hover:underline opacity-50 cursor-not-allowed" disabled>
                                 🗑️ 刪除 (<span id="selectedCount">0</span>)
                             </button>
                         </div>
                     </div>
                     <input type="text" id="teacher-problem-search" placeholder="🔍 搜尋題目..." class="apple-input mb-4" oninput="renderTeacherProblemList()">
-                    <ul id="teacher-problem-list" class="space-y-2 max-h-96 overflow-y-auto"></ul>
+                    <ul id="teacher-problem-list" class="space-y-2 max-h-96 overflow-y-auto pr-2"></ul>
                 </div>
             </div>
         </div>
     </main>
 
-    <div id="teacher-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-        <div class="apple-card max-w-sm w-full text-center p-8">
-            <h3 class="text-[21px] font-semibold mb-2">老師管理後台</h3>
-            <p class="text-[14px] opacity-60 mb-8">請使用授權的 Google 帳號登入</p>
+    <div id="teacher-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
+        <div class="apple-card max-w-sm w-full text-center p-8 border border-gray-700">
+            <h3 class="text-[21px] font-bold mb-2">老師管理後台</h3>
+            <p class="text-[14px] text-apple-textSecLight dark:text-apple-textSecDark mb-8">請使用授權的 Google 帳號登入</p>
             
-            <button onclick="verifyTeacher()" id="teacher-login-btn" class="flex items-center justify-center w-full px-4 py-3 border border-gray-300 rounded-[8px] shadow-sm bg-white text-[14px] font-medium text-[#1d1d1f] hover:bg-[#fafafc] mb-6 transition">
+            <button onclick="verifyTeacher()" id="teacher-login-btn" class="flex items-center justify-center w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-[8px] shadow-sm bg-white dark:bg-[#272729] text-[14px] font-bold text-[#1d1d1f] dark:text-white hover:bg-gray-50 dark:hover:bg-gray-800 mb-6 transition">
                 <img class="h-5 w-5 mr-3" src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google">
                 使用 Google 帳號登入
             </button>
 
-            <button onclick="closeTeacherModal()" class="text-[14px] opacity-60 hover:opacity-100">取消</button>
+            <button onclick="closeTeacherModal()" class="text-[14px] font-bold text-apple-textSecLight dark:text-apple-textSecDark hover:text-apple-textLight dark:hover:text-apple-textDark">取消</button>
         </div>
     </div>
 
-    <div id="code-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-        <div class="apple-card max-w-3xl w-full">
-            <div class="flex justify-between items-center mb-6 border-b border-gray-100 dark:border-gray-800 pb-4">
-                <h3 class="text-[21px] font-semibold text-[#0071e3]" id="code-modal-title">學生程式碼歷史紀錄</h3>
-                <button onclick="closeCodeModal()" class="text-[24px] opacity-50 hover:opacity-100">&times;</button>
+    <div id="code-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div class="apple-card max-w-3xl w-full border border-gray-700">
+            <div class="flex justify-between items-center mb-6 border-b border-gray-200 dark:border-gray-700 pb-4">
+                <h3 class="text-[21px] font-bold text-[#0071e3]" id="code-modal-title">學生程式碼歷史紀錄</h3>
+                <button onclick="closeCodeModal()" class="text-[28px] font-bold text-apple-textSecLight dark:text-apple-textSecDark hover:text-apple-textLight dark:hover:text-apple-textDark">&times;</button>
             </div>
-            <div class="mb-4">
-                <label class="text-[14px] font-medium opacity-80 mr-2">選擇歷史遞交紀錄：</label>
-                <select id="history-selector" class="apple-input py-2 px-3 w-auto text-[14px] font-mono" onchange="renderSelectedHistory()"></select>
+            <div class="mb-4 flex flex-col md:flex-row md:items-center">
+                <label class="text-[14px] font-bold text-apple-textLight dark:text-apple-textDark mb-2 md:mb-0 md:mr-3">選擇歷史遞交紀錄：</label>
+                <select id="history-selector" class="apple-input py-2 px-3 flex-1 text-[14px] font-mono font-medium" onchange="renderSelectedHistory()"></select>
             </div>
-            <div id="code-modal-editor" class="w-full h-80 rounded-[8px] mb-6 overflow-hidden border border-gray-200 dark:border-gray-700"></div>
-            <div class="flex justify-end">
-                <button onclick="closeCodeModal()" class="apple-btn-pill border-transparent text-[#1d1d1f] dark:text-white">關閉</button>
+            <div id="code-modal-editor" class="w-full h-80 rounded-[8px] mb-6 overflow-hidden border border-gray-300 dark:border-gray-700"></div>
+            <div class="flex justify-end pt-4 border-t border-gray-200 dark:border-gray-700">
+                <button onclick="closeCodeModal()" class="apple-btn-primary font-medium">關閉</button>
             </div>
         </div>
     </div>
@@ -412,16 +443,27 @@
 
         function toggleTheme() {
             document.body.classList.toggle('dark-mode');
+            const isDark = document.body.classList.contains('dark-mode');
             const btn = document.getElementById('theme-toggle-btn');
-            if(document.body.classList.contains('dark-mode')) {
+            
+            // Sync Tailwind's dark mode class on HTML root for nested Tailwind utilities
+            if (isDark) {
+                document.documentElement.classList.add('dark');
                 btn.innerText = "☀️ 亮色模式";
                 localStorage.setItem('theme', 'dark');
             } else {
+                document.documentElement.classList.remove('dark');
                 btn.innerText = "🌙 暗色模式";
                 localStorage.setItem('theme', 'light');
             }
         }
-        if(localStorage.getItem('theme') === 'dark') toggleTheme();
+        
+        // Initialize Theme
+        if(localStorage.getItem('theme') === 'dark') {
+            document.body.classList.add('dark-mode');
+            document.documentElement.classList.add('dark');
+            document.getElementById('theme-toggle-btn').innerText = "☀️ 亮色模式";
+        }
 
         function getFormattedTime() {
             const d = new Date();
@@ -433,7 +475,7 @@
             const term = document.getElementById('terminal-output');
             const span = document.createElement('span');
             span.textContent = text + (text.endsWith('\n') ? '' : '\n');
-            if (isError) span.className = 'text-red-400 font-bold';
+            if (isError) span.className = 'text-red-500 font-bold';
             term.appendChild(span);
             term.scrollTop = term.scrollHeight;
         };
@@ -606,15 +648,15 @@ builtins.input = custom_input
             const keyText = document.getElementById('current-active-key');
             if (activeSystemKey && activeSystemKey.expiresAt > Date.now()) {
                 const minutesLeft = Math.floor((activeSystemKey.expiresAt - Date.now()) / 60000);
-                statusText.innerText = `啟用中 (剩餘約 ${minutesLeft} 分鐘)`; statusText.className = "font-medium text-green-500"; keyText.innerText = activeSystemKey.key;
-            } else { statusText.innerText = "未啟用或已過期 (學生目前無法登入)"; statusText.className = "font-medium text-red-500"; keyText.innerText = "------"; }
+                statusText.innerText = `啟用中 (剩餘約 ${minutesLeft} 分鐘)`; statusText.className = "font-bold text-green-600 dark:text-green-400"; keyText.innerText = activeSystemKey.key;
+            } else { statusText.innerText = "未啟用或已過期 (學生目前無法登入)"; statusText.className = "font-bold text-red-600 dark:text-red-400"; keyText.innerText = "------"; }
         }
 
         setInterval(() => { if (!document.getElementById('teacher-view').classList.contains('hidden')) renderKeyStatus(); }, 60000);
 
         function renderStudentProblemList() {
             const listDiv = document.getElementById('problem-list'); listDiv.innerHTML = '';
-            if (Object.keys(dbProblems).length === 0) { listDiv.innerHTML = '<p class="text-[14px] opacity-60">老師尚未新增任何題目。</p>'; return; }
+            if (Object.keys(dbProblems).length === 0) { listDiv.innerHTML = '<p class="text-[14px] font-medium text-apple-textSecLight dark:text-apple-textSecDark">老師尚未新增任何題目。</p>'; return; }
             const searchKw = (document.getElementById('student-problem-search')?.value || '').toLowerCase();
             let probsArray = Object.entries(dbProblems).map(([pId, prob]) => ({ pId, ...prob }));
             probsArray.sort((a, b) => {
@@ -627,18 +669,18 @@ builtins.input = custom_input
                 const subKey = `${currentUser.key}_${prob.pId}`; const sub = dbSubmissions[subKey];
                 
                 let scoreText = '尚未作答';
-                let scoreColor = 'opacity-50';
+                let scoreColor = 'text-apple-textSecLight dark:text-apple-textSecDark opacity-70';
                 if (sub && sub.attempts > 0) {
                     scoreText = '✅ 已完成';
-                    scoreColor = 'text-[#0071e3] font-medium';
+                    scoreColor = 'text-[#0071e3] font-bold';
                 } else if (sub && sub.draftCode && sub.draftCode !== (prob.defaultCode || "# 在這裡寫下你的程式碼\n")) {
                     scoreText = '📝 尚未遞交';
-                    scoreColor = 'text-yellow-600 font-medium';
+                    scoreColor = 'text-yellow-600 dark:text-yellow-400 font-bold';
                 }
                 
                 const btn = document.createElement('button');
-                btn.className = "w-full text-left p-4 border-b border-gray-100 dark:border-gray-800 hover:bg-[#fafafc] dark:hover:bg-[#262628] transition flex justify-between items-center rounded-[8px]";
-                btn.innerHTML = `<span class="font-medium text-[17px]">${prob.title}</span><span class="text-[14px] ${scoreColor}">${scoreText}</span>`;
+                btn.className = "w-full text-left p-4 border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1d1d1f] hover:bg-[#fafafc] dark:hover:bg-[#272729] transition flex justify-between items-center rounded-[8px] mb-2 shadow-sm";
+                btn.innerHTML = `<span class="font-bold text-[17px] text-apple-textLight dark:text-apple-textDark">${prob.title}</span><span class="text-[14px] ${scoreColor}">${scoreText}</span>`;
                 btn.onclick = () => openProblem(prob.pId); listDiv.appendChild(btn);
             });
         }
@@ -725,12 +767,12 @@ builtins.input = custom_input
                 await pyodide.runPythonAsync(studentCode);
                 window.appendTerminal("\n>>> 程式執行完畢。", false);
                 resultMsg.innerText = "ℹ️ 若確認無誤，請點擊「正式遞交」上傳。";
-                resultMsg.classList.remove('hidden', 'text-red-500', 'text-green-500');
+                resultMsg.classList.remove('hidden', 'text-red-600', 'text-green-600', 'dark:text-red-400', 'dark:text-green-400');
                 resultMsg.classList.add('text-[#0071e3]');
             } catch (err) {
                 window.appendTerminal("\n>>> 系統執行發生錯誤！\n" + err.toString(), true);
-                resultMsg.classList.remove('hidden', 'text-green-500', 'text-[#0071e3]');
-                resultMsg.classList.add('text-red-500');
+                resultMsg.classList.remove('hidden', 'text-green-600', 'text-[#0071e3]', 'dark:text-green-400');
+                resultMsg.classList.add('text-red-600', 'dark:text-red-400');
                 resultMsg.innerText = "❌ 程式語法錯誤或執行失敗！";
             }
             btn.innerText = "🔍 測試程式碼"; btn.disabled = false;
@@ -792,13 +834,13 @@ builtins.input = custom_input
                 await fetch(`${FIREBASE_BASE_URL}/submissions/${subKey}.json`, { method: 'PUT', body: JSON.stringify(dbSubmissions[subKey]) });
                 window.appendTerminal(">>> 遞交程序完成。系統已紀錄你的最新程式碼！", false);
                 resultMsg.innerText = "✅ 遞交成功！你的程式碼已送出。"; 
-                resultMsg.classList.remove('hidden', 'text-red-500', 'text-[#0071e3]');
-                resultMsg.classList.add('text-green-500');
+                resultMsg.classList.remove('hidden', 'text-red-600', 'text-[#0071e3]', 'dark:text-red-400');
+                resultMsg.classList.add('text-green-600', 'dark:text-green-400');
 
             } catch (networkErr) {
                 resultMsg.innerText = "❌ 網路問題導致上傳失敗，請檢查網路狀態。";
-                resultMsg.classList.remove('hidden', 'text-green-500', 'text-[#0071e3]'); 
-                resultMsg.classList.add('text-red-500');
+                resultMsg.classList.remove('hidden', 'text-green-600', 'text-[#0071e3]', 'dark:text-green-400'); 
+                resultMsg.classList.add('text-red-600', 'dark:text-red-400');
             }
             
             updateSubmitStatus();
@@ -880,8 +922,11 @@ builtins.input = custom_input
 
         function switchTeacherTab(tab) {
             document.getElementById('teacher-tab-grades').classList.add('hidden'); document.getElementById('teacher-tab-problems').classList.add('hidden');
-            document.getElementById('tab-btn-grades').className = "px-5 py-2 text-[14px] font-medium opacity-70 hover:opacity-100 transition rounded-[8px]"; document.getElementById('tab-btn-problems').className = "px-5 py-2 text-[14px] font-medium opacity-70 hover:opacity-100 transition rounded-[8px]";
-            document.getElementById(`teacher-tab-${tab}`).classList.remove('hidden'); document.getElementById(`tab-btn-${tab}`).className = "px-5 py-2 bg-white dark:bg-[#373739] shadow-sm rounded-[8px] text-[14px] font-medium transition";
+            document.getElementById('tab-btn-grades').className = "px-5 py-2 text-[14px] font-medium text-apple-textSecLight dark:text-apple-textSecDark hover:text-apple-textLight dark:hover:text-apple-textDark transition rounded-[8px]"; 
+            document.getElementById('tab-btn-problems').className = "px-5 py-2 text-[14px] font-medium text-apple-textSecLight dark:text-apple-textSecDark hover:text-apple-textLight dark:hover:text-apple-textDark transition rounded-[8px]";
+            
+            document.getElementById(`teacher-tab-${tab}`).classList.remove('hidden'); 
+            document.getElementById(`tab-btn-${tab}`).className = "px-5 py-2 bg-white dark:bg-[#1d1d1f] shadow-sm rounded-[8px] text-[14px] font-bold text-apple-textLight dark:text-apple-textDark transition";
         }
 
         async function loadDataAndRender() {
@@ -931,7 +976,7 @@ builtins.input = custom_input
             if (sorted.length === 0) {
                 msg += "目前尚無學生成績資料。";
             } else {
-                sorted.slice(0, 10).forEach((s, idx) => { // 取前10名
+                sorted.slice(0, 10).forEach((s, idx) => { 
                     msg += `第 ${idx+1} 名 | ${s.cls}班 ${s.sid}號\n`;
                     msg += `   ↳ 總分: ${s.totalScore} | 離開視窗: ${s.awayTime} 秒 | 完成題數: ${s.completedCount}\n\n`;
                 });
@@ -950,15 +995,16 @@ builtins.input = custom_input
                 
                 const currentSubKey = `${s.cls}-${s.sid}_${s.pId}`;
                 const tr = document.createElement('tr');
+                tr.className = "hover:bg-gray-50 dark:hover:bg-[#1d1d1f] transition";
                 tr.innerHTML = `
-                    <td class="py-3 px-4">${s.cls}</td>
-                    <td class="py-3 px-4">${s.sid}</td>
-                    <td class="py-3 px-4 opacity-80 truncate max-w-xs" title="${probTitle}">${probTitle}</td>
-                    <td class="py-3 px-4 font-semibold ${s.maxScore === 100 ? 'text-green-500' : 'text-red-500'}">${s.maxScore || 0}</td>
-                    <td class="py-3 px-4">${s.attempts}</td>
-                    <td class="py-3 px-4 text-[#0071e3] font-mono text-[12px]">${timeText}</td>
-                    <td class="py-3 px-4 font-semibold ${awaySec > 0 ? 'text-red-500' : 'text-green-500'}">${awaySec} 秒</td>
-                    <td class="py-3 px-4 text-center"><button onclick="showCodeModal('${currentSubKey}')" class="apple-btn-pill text-[12px] py-1 px-3">查看紀錄</button></td>
+                    <td class="py-3 px-4 font-medium text-apple-textLight dark:text-apple-textDark">${s.cls}</td>
+                    <td class="py-3 px-4 font-medium text-apple-textLight dark:text-apple-textDark">${s.sid}</td>
+                    <td class="py-3 px-4 font-medium text-apple-textLight dark:text-apple-textDark truncate max-w-xs" title="${probTitle}">${probTitle}</td>
+                    <td class="py-3 px-4 font-bold ${s.maxScore === 100 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}">${s.maxScore || 0}</td>
+                    <td class="py-3 px-4 text-apple-textLight dark:text-apple-textDark font-medium">${s.attempts}</td>
+                    <td class="py-3 px-4 text-[#0071e3] font-mono text-[12px] font-bold">${timeText}</td>
+                    <td class="py-3 px-4 font-bold ${awaySec > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}">${awaySec} 秒</td>
+                    <td class="py-3 px-4 text-center"><button onclick="showCodeModal('${currentSubKey}')" class="apple-btn-pill font-medium text-[12px] py-1 px-3">查看紀錄</button></td>
                 `; tbody.appendChild(tr);
             });
         }
@@ -994,10 +1040,10 @@ builtins.input = custom_input
             probsArray.forEach(prob => {
                 const searchTarget = (prob.id || "") + " " + (prob.title || "");
                 if (searchKw && !searchTarget.toLowerCase().includes(searchKw)) return;
-                const li = document.createElement('li'); li.className = "flex justify-between items-center border-b border-gray-100 dark:border-gray-800 pb-3 mb-3";
+                const li = document.createElement('li'); li.className = "flex justify-between items-center border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1d1d1f] p-3 rounded-[8px] mb-2 shadow-sm";
                 li.innerHTML = `
-                    <div class="flex items-center overflow-hidden"><input type="checkbox" class="problem-checkbox w-4 h-4 mr-3 cursor-pointer rounded" value="${prob.pId}" onchange="updateSelectedCount()"><span class="font-medium text-[14px] truncate" title="${prob.title}">${prob.title}</span></div>
-                    <div class="space-x-4 flex-shrink-0 ml-2"><button onclick="editProblem('${prob.pId}')" class="text-[#0071e3] text-[14px] hover:underline">編輯</button><button onclick="deleteProblem('${prob.pId}')" class="text-red-500 text-[14px] hover:underline">刪除</button></div>
+                    <div class="flex items-center overflow-hidden"><input type="checkbox" class="problem-checkbox w-4 h-4 mr-3 cursor-pointer rounded border-gray-300 dark:border-gray-600" value="${prob.pId}" onchange="updateSelectedCount()"><span class="font-bold text-[14px] text-apple-textLight dark:text-apple-textDark truncate" title="${prob.title}">${prob.title}</span></div>
+                    <div class="space-x-4 flex-shrink-0 ml-2"><button onclick="editProblem('${prob.pId}')" class="text-[#0071e3] font-bold text-[14px] hover:underline">編輯</button><button onclick="deleteProblem('${prob.pId}')" class="text-red-600 dark:text-red-400 font-bold text-[14px] hover:underline">刪除</button></div>
                 `; list.appendChild(li);
             }); updateSelectedCount();
         }
