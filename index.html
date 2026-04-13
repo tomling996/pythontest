@@ -437,7 +437,7 @@
         let totalAwayTime = 0;
         let activeSystemKey = null;
         let cooldownTimer = null;
-        window.isExecuting = false; // 新增全域執行狀態
+        window.isExecuting = false;
 
         const defaultBeginnerTestScript = `import sys\nimport io\nimport builtins\n\ninput_values = []\n\noriginal_input = builtins.input\ndef mock_input(prompt=""):\n    sys.stdout.write(prompt)\n    val = input_values.pop(0) if input_values else ""\n    sys.stdout.write(str(val) + "\\n")\n    return val\n\nbuiltins.input = mock_input\ncaptured_output = io.StringIO()\nsys.stdout = captured_output\n\ntry:\n    exec("""{STUDENT_CODE}""", globals())\nexcept Exception:\n    pass\nfinally:\n    sys.stdout = sys.__stdout__\n    builtins.input = original_input\n\nstudent_out = captured_output.getvalue()\nexpected_out = """{EXPECTED_OUTPUT}"""\n\nout_lines = [line.strip() for line in student_out.splitlines() if line.strip() != ""]\nexp_lines = [line.strip() for line in expected_out.splitlines() if line.strip() != ""]\n\npassed = 1 if out_lines == exp_lines else 0\nscore = 100 if passed else 0\n\nf"{passed},1,{score}"`;
 
@@ -479,7 +479,6 @@
                 });
                 pyodide = pyodideInstance;
                 
-                // 初始化全域的 input() 取代 (包含中斷偵測)
                 await pyodide.runPythonAsync(`
 import builtins
 import js
@@ -742,7 +741,6 @@ builtins.input = custom_input
             countSpan.innerText = `總遞交次數：${sub ? (sub.attempts || 0) : 0}`;
         }
 
-        // --- AST Patcher: 自動注入 asyncio.sleep 並攔截取消動作 ---
         async function patchStudentCode(code, isAsync) {
             window.student_code_global = code;
             window.is_async_run = isAsync;
@@ -807,18 +805,15 @@ js.student_code_global = patched_code
             return window.student_code_global;
         }
 
-        // --- 測試程式碼 (可中斷機制) ---
         async function toggleTestCode() {
             const btn = document.getElementById('test-btn');
             if (window.isExecuting) {
-                // 如果正在執行，按鈕變成取消
-                window.isExecuting = false; // 設定標記，讓迴圈或 input 下次偵測到就引發 Exception
+                window.isExecuting = false;
                 btn.innerText = "🛑 正在取消...";
                 btn.disabled = true;
                 return;
             }
             
-            // 開始執行
             window.isExecuting = true;
             btn.innerText = "🛑 取消運行";
             btn.classList.add('bg-red-600', 'text-white', 'dark:bg-red-600', 'dark:text-white');
@@ -826,7 +821,6 @@ js.student_code_global = patched_code
             
             await testCode();
             
-            // 執行完畢，重置按鈕
             window.isExecuting = false;
             btn.innerText = "🔍 測試程式碼";
             btn.disabled = false;
@@ -843,10 +837,8 @@ js.student_code_global = patched_code
             window.appendTerminal(">>> 測試模式：可手動輸入數據進行測試...\n", false);
             
             try {
-                // 1. AST 處理注入延遲與中斷判定
                 studentCode = await patchStudentCode(studentCode, true);
                 
-                // 2. 重新綁定可取消的 input
                 await pyodide.runPythonAsync(`
 import sys, builtins, js
 sys.stdout = sys.__stdout__
@@ -862,7 +854,6 @@ def custom_input(prompt_text=""):
 builtins.input = custom_input
                 `);
 
-                // 3. 執行程式碼
                 await pyodide.runPythonAsync(studentCode);
                 
                 window.appendTerminal("\n>>> 程式執行完畢。", false);
@@ -870,16 +861,8 @@ builtins.input = custom_input
                 resultMsg.classList.remove('hidden', 'text-red-600', 'text-green-600', 'dark:text-red-400', 'dark:text-green-400');
                 resultMsg.classList.add('text-[#0071e3]');
             } catch (err) {
+                // 取消精簡錯誤訊息：保留原本完整的底層錯誤輸出
                 let errMsg = err.toString();
-                let lines = errMsg.split('\n');
-                // 尋找真實的錯誤類型 (如 TypeError)
-                let errorTypeLine = lines.find(l => l.match(/^[A-Za-z]+Error:/));
-                if (errorTypeLine) {
-                    errMsg = errorTypeLine;
-                } else {
-                    let filtered = lines.filter(line => !line.includes('/lib/python') && !line.includes('File "<exec>"') && !line.includes('eval_code_async'));
-                    errMsg = filtered.join('\n');
-                }
                 
                 window.appendTerminal("\n>>> 系統執行發生錯誤！\n" + errMsg, true);
                 resultMsg.classList.remove('hidden', 'text-green-600', 'text-[#0071e3]', 'dark:text-green-400');
@@ -906,7 +889,6 @@ builtins.input = custom_input
             if (!dbSubmissions[subKey]) dbSubmissions[subKey] = { attempts: 0, cls: currentUser.cls, sid: currentUser.sid, maxScore: 0 };
 
             try {
-                // 批改時同樣注入超時處理，但使用 time.sleep 避免 exec 發生 async 語法錯誤
                 let patchedStudentCode = await patchStudentCode(studentCode, false);
                 const script = prob.testScript.replace('{STUDENT_CODE}', patchedStudentCode.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/'/g, "\\'").replace(/\n/g, '\\n'));
                 
@@ -990,7 +972,6 @@ builtins.input = custom_input
                 updateTeacherProblemFilter();
                 showView('teacher-view');
 
-                // 綁定即時更新監聽器 (取代手動重新整理)
                 firebase.database().ref('submissions').on('value', (snapshot) => {
                     dbSubmissions = snapshot.val() || {};
                     renderTeacherTable();
@@ -1016,7 +997,6 @@ builtins.input = custom_input
                 dbSessionStats = await fetch(`${FIREBASE_BASE_URL}/session_stats/${activeSystemKey.key}.json${authQuery}`).then(r => r.json()) || {};
             else dbSessionStats = {};
             
-            // dbSubmissions 由 Firebase SDK on('value') 負責更新，此處僅呼叫渲染
             renderTeacherTable();
             renderTeacherProblemList();
             renderKeyStatus();
@@ -1084,7 +1064,6 @@ builtins.input = custom_input
 
             let subs = Object.entries(dbSubmissions).map(([k, v]) => ({ key: k, ...v }));
 
-            // 實作日期篩選
             if (dateFilter) {
                 subs = subs.filter(sub => {
                     if (!sub.lastSubmitTimestamp) return false;
@@ -1325,7 +1304,7 @@ builtins.input = custom_input
             await auth.signOut();
             teacherToken = null;
             dbSubmissions = {};
-            firebase.database().ref('submissions').off('value'); // 移除監聽器
+            firebase.database().ref('submissions').off('value');
             showLogin();
         }
 
