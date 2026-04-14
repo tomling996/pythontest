@@ -36,7 +36,6 @@
     
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
 
     <style>
         /* Apple Design System Base Typography */
@@ -239,7 +238,7 @@
                 
                 <div class="mt-8 flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
                     <div class="space-x-3 flex w-full md:w-auto">
-                        <button id="test-btn" onclick="toggleTestCode()" class="bg-[#1d1d1f] dark:bg-[#f5f5f7] text-white dark:text-[#1d1d1f] px-[15px] py-[8px] rounded-[8px] text-[17px] font-medium hover:opacity-90 transition flex-1 md:flex-none">🔍 測試程式碼</button>
+                        <button id="test-btn" onclick="testCode()" class="bg-[#1d1d1f] dark:bg-[#f5f5f7] text-white dark:text-[#1d1d1f] px-[15px] py-[8px] rounded-[8px] text-[17px] font-medium hover:opacity-90 transition flex-1 md:flex-none">🔍 測試程式碼</button>
                         <button id="submit-btn" onclick="submitCode()" class="apple-btn-primary flex-1 md:flex-none font-medium">🚀 正式遞交</button>
                     </div>
                     <div id="result-message" class="font-bold text-[17px] hidden text-center md:text-right w-full md:w-auto"></div>
@@ -251,6 +250,7 @@
             <div class="flex justify-between items-center mb-10 pb-6 border-b border-gray-200 dark:border-gray-700">
                 <h2 style="font-size: 40px; line-height: 1.10;">老師專區</h2>
                 <div class="space-x-4">
+                    <button onclick="loadDataAndRender()" class="apple-btn-pill border-gray-400 text-apple-textLight dark:text-apple-textDark">重新整理資料</button>
                     <button onclick="teacherLogout()" class="text-[#0071e3] text-[14px] hover:underline font-medium">登出後台</button>
                 </div>
             </div>
@@ -289,9 +289,6 @@
                     <select id="teacher-problem-filter" onchange="renderTeacherTable()" class="apple-input py-1 px-3 w-auto text-[14px] font-medium">
                         <option value="all">全部題目</option>
                     </select>
-                    
-                    <label class="text-[14px] font-bold text-apple-textLight dark:text-apple-textDark ml-4">日期：</label>
-                    <input type="date" id="teacher-date-filter" onchange="renderTeacherTable()" class="apple-input py-1 px-3 w-auto text-[14px] font-medium">
                 </div>
                 
                 <div class="overflow-x-auto rounded-[8px] border border-gray-200 dark:border-gray-700">
@@ -424,32 +421,74 @@
         const provider = new firebase.auth.GoogleAuthProvider();
         
         const FIREBASE_BASE_URL = firebaseConfig.databaseURL;
-
-        let pyodide;
+        
+        let pyodide = null;
+        let currentUser = null;
+        let currentProblemId = null;
+        let editingProblemId = null; 
         let dbProblems = {};
         let dbSubmissions = {};
-        let currentUser = null; 
-        let currentProblemId = null;
-        let studentEditor, teacherDefaultEditor, teacherTestEditor, teacherHistoryEditor;
-        let editingProblemId = null;
-        let teacherToken = null;
-        let awayStartTime = null;
-        let totalAwayTime = 0;
+        let dbSessionStats = {}; 
         let activeSystemKey = null;
+
+        let isAway = false;
+        let awayStartTime = null;
+        let totalAwayTime = 0; 
         let cooldownTimer = null;
-        window.isExecuting = false;
+        let currentViewingSub = null;
+
+        let teacherToken = null; 
+
+        let studentEditor, teacherDefaultEditor, teacherTestEditor, teacherHistoryEditor;
+
+        function toggleTheme() {
+            document.body.classList.toggle('dark-mode');
+            const isDark = document.body.classList.contains('dark-mode');
+            const btn = document.getElementById('theme-toggle-btn');
+            
+            // Sync Tailwind's dark mode class on HTML root for nested Tailwind utilities
+            if (isDark) {
+                document.documentElement.classList.add('dark');
+                btn.innerText = "☀️ 亮色模式";
+                localStorage.setItem('theme', 'dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+                btn.innerText = "🌙 暗色模式";
+                localStorage.setItem('theme', 'light');
+            }
+        }
+        
+        // Initialize Theme
+        if(localStorage.getItem('theme') === 'dark') {
+            document.body.classList.add('dark-mode');
+            document.documentElement.classList.add('dark');
+            document.getElementById('theme-toggle-btn').innerText = "☀️ 亮色模式";
+        }
+
+        function getFormattedTime() {
+            const d = new Date();
+            const pad = (n) => n.toString().padStart(2, '0');
+            return `${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+        }
+
+        window.appendTerminal = function(text, isError = false) {
+            const term = document.getElementById('terminal-output');
+            const span = document.createElement('span');
+            span.textContent = text + (text.endsWith('\n') ? '' : '\n');
+            if (isError) span.className = 'text-red-500 font-bold';
+            term.appendChild(span);
+            term.scrollTop = term.scrollHeight;
+        };
+
+        function clearTerminal() {
+            document.getElementById('terminal-output').innerHTML = '';
+        }
 
         const defaultBeginnerTestScript = `import sys\nimport io\nimport builtins\n\ninput_values = []\n\noriginal_input = builtins.input\ndef mock_input(prompt=""):\n    sys.stdout.write(prompt)\n    val = input_values.pop(0) if input_values else ""\n    sys.stdout.write(str(val) + "\\n")\n    return val\n\nbuiltins.input = mock_input\ncaptured_output = io.StringIO()\nsys.stdout = captured_output\n\ntry:\n    exec("""{STUDENT_CODE}""", globals())\nexcept Exception:\n    pass\nfinally:\n    sys.stdout = sys.__stdout__\n    builtins.input = original_input\n\nstudent_out = captured_output.getvalue()\nexpected_out = """{EXPECTED_OUTPUT}"""\n\nout_lines = [line.strip() for line in student_out.splitlines() if line.strip() != ""]\nexp_lines = [line.strip() for line in expected_out.splitlines() if line.strip() != ""]\n\npassed = 1 if out_lines == exp_lines else 0\nscore = 100 if passed else 0\n\nf"{passed},1,{score}"`;
 
         function initEditors() {
-            const editorSettings = {
-                mode: "ace/mode/python",
-                theme: "ace/theme/monokai",
-                fontSize: "14px",
-                showPrintMargin: false,
-                enableBasicAutocompletion: true,
-                enableLiveAutocompletion: true
-            };
+            const editorSettings = { mode: "ace/mode/python", theme: "ace/theme/monokai", fontSize: "14px", showPrintMargin: false, enableBasicAutocompletion: true, enableLiveAutocompletion: true };
+            
             studentEditor = ace.edit("student-editor");
             studentEditor.setOptions(editorSettings);
             
@@ -460,14 +499,9 @@
             teacherTestEditor = ace.edit("teacher-test-editor");
             teacherTestEditor.setOptions(editorSettings);
             teacherTestEditor.setValue(defaultBeginnerTestScript, -1);
-            
+
             teacherHistoryEditor = ace.edit("code-modal-editor");
-            teacherHistoryEditor.setOptions({
-                ...editorSettings,
-                readOnly: true,
-                highlightActiveLine: false,
-                highlightGutterLine: false
-            });
+            teacherHistoryEditor.setOptions({ ...editorSettings, readOnly: true, highlightActiveLine: false, highlightGutterLine: false });
         }
 
         async function init() {
@@ -478,87 +512,88 @@
                     stderr: (text) => window.appendTerminal(text, true)
                 });
                 pyodide = pyodideInstance;
-                
+
                 await pyodide.runPythonAsync(`
 import builtins
 import js
+
 def custom_input(prompt_text=""):
-    if getattr(js.window, 'isExecuting', False) == False:
-        raise Exception("用戶已取消執行")
     res = js.prompt(prompt_text)
-    if res is None:
-        js.window.isExecuting = False
-        raise Exception("用戶取消了輸入")
-    js.window.appendTerminal(str(prompt_text) + str(res) + "\\n", False)
+    if res is None: res = ""
+    js.window.appendTerminal(str(prompt_text) + str(res), False)
     return res
+
 builtins.input = custom_input
                 `);
 
-                const pRes = await fetch(`${FIREBASE_BASE_URL}/problems.json`).then(r => r.json());
-                dbProblems = pRes || {};
+                const [probRes, subRes] = await Promise.all([
+                    fetch(`${FIREBASE_BASE_URL}/problems.json`).then(r => r.json()),
+                    fetch(`${FIREBASE_BASE_URL}/submissions.json`).then(r => r.json())
+                ]);
+                dbProblems = probRes || {};
+                dbSubmissions = subRes || {};
+
                 document.getElementById('loading-view').classList.add('hidden');
-                showLogin();
-            } catch (error) {
-                console.error("Pyodide 載入失敗:", error);
-                document.getElementById('loading-view').innerHTML = `<p class="text-red-600 font-bold">系統載入失敗，請檢查網路連線後重新整理。</p>`;
+                document.getElementById('login-view').classList.remove('hidden');
+            } catch (err) {
+                alert("載入系統失敗，請檢查網路連線。");
+                console.error(err);
             }
         }
+        init();
 
-        function toggleTheme() {
-            document.body.classList.toggle('dark-mode');
-            const isDark = document.body.classList.contains('dark-mode');
-            localStorage.setItem('theme', isDark ? 'dark' : 'light');
-            document.getElementById('theme-toggle-btn').innerText = isDark ? "☀️ 亮色模式" : "🌙 暗色模式";
-        }
-
-        window.onload = () => {
-            if (localStorage.getItem('theme') === 'dark') {
-                document.body.classList.add('dark-mode');
-                document.getElementById('theme-toggle-btn').innerText = "☀️ 亮色模式";
-            }
-            init();
-        };
-
+        function goHome() { if (currentUser) showView('problem-select-view'); else showLogin(); }
         function showView(viewId) {
-            document.getElementById('login-view').classList.add('hidden');
-            document.getElementById('problem-select-view').classList.add('hidden');
-            document.getElementById('student-view').classList.add('hidden');
-            document.getElementById('teacher-view').classList.add('hidden');
+            ['login-view', 'problem-select-view', 'student-view', 'teacher-view'].forEach(id => document.getElementById(id).classList.add('hidden'));
             document.getElementById(viewId).classList.remove('hidden');
         }
+        function showLogin() { showView('login-view'); currentUser = null; document.getElementById('student-key').value = ''; totalAwayTime = 0; updateAwayTimeUI(); }
 
-        function goHome() {
-            if (currentUser) {
-                document.getElementById('student-problem-search').value = '';
-                renderStudentProblemList();
-                showView('problem-select-view');
-            } else if (teacherToken) {
-                showView('teacher-view');
-            } else {
-                showLogin();
+        function handleAway() {
+            if (!currentUser || !activeSystemKey || isAway) return;
+            isAway = true; awayStartTime = Date.now();
+        }
+        async function handleReturn() {
+            if (!currentUser || !activeSystemKey || !isAway) return;
+            isAway = false;
+            if (awayStartTime) {
+                totalAwayTime += (Date.now() - awayStartTime);
+                awayStartTime = null; updateAwayTimeUI();
+                await fetch(`${FIREBASE_BASE_URL}/session_stats/${activeSystemKey.key}/${currentUser.key}.json`, {
+                    method: 'PATCH', body: JSON.stringify({ awayTime: totalAwayTime })
+                }).catch(e => {}); 
             }
         }
+        
+        setInterval(() => {
+            if (!currentUser || !activeSystemKey) return;
+            const isActuallyFocused = document.hasFocus() && !document.hidden;
+            if (!isActuallyFocused && !isAway) {
+                handleAway();
+            } else if (isActuallyFocused && isAway) {
+                handleReturn();
+            }
+        }, 1000);
 
-        function showLogin() {
-            currentUser = null;
-            document.getElementById('student-class').value = '';
-            document.getElementById('student-id').value = '';
-            document.getElementById('student-key').value = '';
-            showView('login-view');
+        function updateAwayTimeUI() {
+            const display = document.getElementById('away-timer-display');
+            if (currentUser) {
+                display.classList.remove('hidden');
+                display.innerText = `⚠️ 離開視窗: ${Math.floor(totalAwayTime / 1000)} 秒`;
+            } else display.classList.add('hidden');
         }
 
-        window.appendTerminal = function(text, isError) {
-            const terminal = document.getElementById('terminal-output');
-            const span = document.createElement('span');
-            span.textContent = text + (text.endsWith('\n') ? '' : '\n');
-            if (isError) span.className = 'text-red-500 dark:text-red-400 font-bold';
-            terminal.appendChild(span);
-            terminal.scrollTop = terminal.scrollHeight;
-        };
-
-        function clearTerminal() {
-            document.getElementById('terminal-output').innerHTML = '';
-        }
+        setInterval(async () => {
+            if (currentUser && activeSystemKey) {
+                try {
+                    const sysRes = await fetch(`${FIREBASE_BASE_URL}/system.json`).then(r => r.json());
+                    if (!sysRes || sysRes.key !== activeSystemKey.key) {
+                        totalAwayTime = 0; awayStartTime = null; activeSystemKey = sysRes; updateAwayTimeUI();
+                        if (!sysRes || Date.now() > sysRes.expiresAt) { alert("⚠️ 課堂已結束或密碼已重置，請重新登入。"); showLogin(); }
+                    }
+                } catch(e) {}
+            }
+        }, 15000);
 
         async function loginStudent() {
             const cls = document.getElementById('student-class').value.trim().toUpperCase();
@@ -566,77 +601,72 @@ builtins.input = custom_input
             const enteredKey = document.getElementById('student-key').value.trim();
             const errorMsg = document.getElementById('login-error');
             const loginBtn = document.getElementById('login-btn');
-            
-            if (!cls || !sid || !enteredKey) {
-                errorMsg.innerText = "請填寫班級、學號與「課堂密碼」";
-                errorMsg.classList.remove('hidden');
-                return;
-            }
-            
-            loginBtn.innerText = "驗證密碼中...";
-            loginBtn.disabled = true;
-            errorMsg.classList.add('hidden');
+
+            if (!cls || !sid || !enteredKey) { errorMsg.innerText = "請填寫班級、學號與「課堂密碼」"; errorMsg.classList.remove('hidden'); return; }
+            loginBtn.innerText = "驗證密碼中..."; loginBtn.disabled = true; errorMsg.classList.add('hidden');
 
             try {
                 const sysRes = await fetch(`${FIREBASE_BASE_URL}/system.json`).then(r => r.json());
-                if (!sysRes || !sysRes.key || Date.now() > sysRes.expiresAt) {
-                    errorMsg.innerText = "⛔ 目前未開放登入，請等待老師提供新的課堂密碼。";
-                    errorMsg.classList.remove('hidden');
-                    return;
-                }
-                if (enteredKey !== sysRes.key) {
-                    errorMsg.innerText = "❌ 課堂密碼錯誤或已過期，請重新確認。";
-                    errorMsg.classList.remove('hidden');
-                    return;
-                }
-                
-                activeSystemKey = sysRes;
-                currentUser = { cls, sid, name: "", key: `${cls}-${sid}` };
-                
+                if (!sysRes || !sysRes.key || Date.now() > sysRes.expiresAt) { errorMsg.innerText = "⛔ 目前未開放登入，請等待老師提供新的課堂密碼。"; errorMsg.classList.remove('hidden'); return; }
+                if (enteredKey !== sysRes.key) { errorMsg.innerText = "❌ 課堂密碼錯誤或已過期，請重新確認。"; errorMsg.classList.remove('hidden'); return; }
+
+                activeSystemKey = sysRes; currentUser = { cls, sid, name: "", key: `${cls}-${sid}` };
                 const infoStr = `${cls} 班 - ${sid} 號`;
-                document.getElementById('student-info-display-1').innerText = infoStr;
-                document.getElementById('student-info-display-2').innerText = infoStr;
+                document.getElementById('student-info-display-1').innerText = infoStr; document.getElementById('student-info-display-2').innerText = infoStr;
                 
                 const stats = await fetch(`${FIREBASE_BASE_URL}/session_stats/${activeSystemKey.key}/${currentUser.key}.json`).then(r=>r.json());
-                totalAwayTime = (stats && stats.awayTime) ? stats.awayTime : 0;
-                
-                const sRes = await fetch(`${FIREBASE_BASE_URL}/submissions.json`).then(r => r.json());
-                dbSubmissions = sRes || {};
-                
+                totalAwayTime = (stats && stats.awayTime) ? stats.awayTime : 0; updateAwayTimeUI();
                 document.getElementById('student-problem-search').value = '';
-                renderStudentProblemList();
-                showView('problem-select-view');
-            } catch (err) {
-                errorMsg.innerText = "網路連線錯誤，無法驗證密碼。";
-                errorMsg.classList.remove('hidden');
-            } finally {
-                loginBtn.innerText = "登入";
-                loginBtn.disabled = false;
-            }
+                renderStudentProblemList(); showView('problem-select-view');
+            } catch (err) { errorMsg.innerText = "網路連線錯誤，無法驗證密碼，請重試。"; errorMsg.classList.remove('hidden');
+            } finally { loginBtn.innerText = "登入"; loginBtn.disabled = false; }
         }
 
+        function getAuthQuery() { return teacherToken ? `?auth=${teacherToken}` : ""; }
+
+        async function generateClassroomKey() {
+            if(!teacherToken) return alert("請先登入");
+            const key = Math.floor(100000 + Math.random() * 900000).toString();
+            const expiresAt = Date.now() + 120 * 60 * 1000; 
+            const systemData = { key, expiresAt };
+            await fetch(`${FIREBASE_BASE_URL}/system.json${getAuthQuery()}`, { method: 'PUT', body: JSON.stringify(systemData) });
+            await fetch(`${FIREBASE_BASE_URL}/session_stats.json${getAuthQuery()}`, { method: 'DELETE' });
+            activeSystemKey = systemData; dbSessionStats = {}; renderKeyStatus();
+            alert(`✅ 已成功生成新密碼: ${key}\n有效時間為 120 分鐘。所有學生的分心計時器已同步歸零。`);
+        }
+
+        async function disableClassroomKey() {
+            if(!teacherToken) return alert("請先登入");
+            if(!confirm("確定要立即停用目前的課堂密碼嗎？\n停用後學生將無法登入，且分心計時器紀錄將被清除。")) return;
+            await fetch(`${FIREBASE_BASE_URL}/system.json${getAuthQuery()}`, { method: 'DELETE' });
+            await fetch(`${FIREBASE_BASE_URL}/session_stats.json${getAuthQuery()}`, { method: 'DELETE' });
+            activeSystemKey = null; dbSessionStats = {}; renderKeyStatus();
+        }
+
+        function renderKeyStatus() {
+            const statusText = document.getElementById('key-status-text');
+            const keyText = document.getElementById('current-active-key');
+            if (activeSystemKey && activeSystemKey.expiresAt > Date.now()) {
+                const minutesLeft = Math.floor((activeSystemKey.expiresAt - Date.now()) / 60000);
+                statusText.innerText = `啟用中 (剩餘約 ${minutesLeft} 分鐘)`; statusText.className = "font-bold text-green-600 dark:text-green-400"; keyText.innerText = activeSystemKey.key;
+            } else { statusText.innerText = "未啟用或已過期 (學生目前無法登入)"; statusText.className = "font-bold text-red-600 dark:text-red-400"; keyText.innerText = "------"; }
+        }
+
+        setInterval(() => { if (!document.getElementById('teacher-view').classList.contains('hidden')) renderKeyStatus(); }, 60000);
+
         function renderStudentProblemList() {
-            const listDiv = document.getElementById('problem-list');
-            listDiv.innerHTML = '';
-            if (Object.keys(dbProblems).length === 0) {
-                listDiv.innerHTML = '<p class="text-[14px] font-medium text-apple-textSecLight dark:text-apple-textSecDark">老師尚未新增任何題目。</p>';
-                return;
-            }
+            const listDiv = document.getElementById('problem-list'); listDiv.innerHTML = '';
+            if (Object.keys(dbProblems).length === 0) { listDiv.innerHTML = '<p class="text-[14px] font-medium text-apple-textSecLight dark:text-apple-textSecDark">老師尚未新增任何題目。</p>'; return; }
             const searchKw = (document.getElementById('student-problem-search')?.value || '').toLowerCase();
-            
             let probsArray = Object.entries(dbProblems).map(([pId, prob]) => ({ pId, ...prob }));
             probsArray.sort((a, b) => {
-                const idA = a.id || a.title || "";
-                const idB = b.id || b.title || "";
+                const idA = a.id || a.title || ""; const idB = b.id || b.title || "";
                 return idA.localeCompare(idB, undefined, { numeric: true, sensitivity: 'base' });
             });
-
             probsArray.forEach(prob => {
                 const searchTarget = (prob.id || "") + " " + (prob.title || "");
                 if (searchKw && !searchTarget.toLowerCase().includes(searchKw)) return;
-
-                const subKey = `${currentUser.key}_${prob.pId}`;
-                const sub = dbSubmissions[subKey];
+                const subKey = `${currentUser.key}_${prob.pId}`; const sub = dbSubmissions[subKey];
                 
                 let scoreText = '尚未作答';
                 let scoreColor = 'text-apple-textSecLight dark:text-apple-textSecDark opacity-70';
@@ -647,335 +677,199 @@ builtins.input = custom_input
                     scoreText = '📝 尚未遞交';
                     scoreColor = 'text-yellow-600 dark:text-yellow-400 font-bold';
                 }
-
+                
                 const btn = document.createElement('button');
                 btn.className = "w-full text-left p-4 border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1d1d1f] hover:bg-[#fafafc] dark:hover:bg-[#272729] transition flex justify-between items-center rounded-[8px] mb-2 shadow-sm";
                 btn.innerHTML = `<span class="font-bold text-[17px] text-apple-textLight dark:text-apple-textDark">${prob.title}</span><span class="text-[14px] ${scoreColor}">${scoreText}</span>`;
-                btn.onclick = () => openProblem(prob.pId);
-                listDiv.appendChild(btn);
+                btn.onclick = () => openProblem(prob.pId); listDiv.appendChild(btn);
             });
         }
-
-        function openProblem(pId) {
-            currentProblemId = pId;
-            const prob = dbProblems[pId];
-            document.getElementById('problem-title').innerText = prob.title;
-            document.getElementById('problem-desc').innerText = prob.desc || prob.description;
-            
-            const expContainer = document.getElementById('expected-output-container');
-            const expOut = document.getElementById('problem-expected-output');
-            if (prob.expected_output && prob.expected_output.trim() !== "") {
-                expOut.innerText = prob.expected_output;
-                expContainer.classList.remove('hidden');
-            } else {
-                expContainer.classList.add('hidden');
-            }
-
-            const subKey = `${currentUser.key}_${pId}`;
-            const sub = dbSubmissions[subKey];
-            
-            studentEditor.session.off('change', currentEditorChangeHandler);
-
-            if (sub && sub.draftCode) {
-                studentEditor.setValue(sub.draftCode, -1);
-            } else {
-                studentEditor.setValue(prob.defaultCode || "# 在這裡寫下你的程式碼\n", -1);
-            }
-            
-            studentEditor.session.on('change', currentEditorChangeHandler);
-            
-            clearTerminal();
-            document.getElementById('result-message').classList.add('hidden');
-            updateSubmitStatus();
-            showView('student-view');
-        }
-
-        let currentEditorChangeHandler = () => {
-            if(!currentUser || !currentProblemId) return;
-            const subKey = `${currentUser.key}_${currentProblemId}`;
-            if (!dbSubmissions[subKey]) dbSubmissions[subKey] = { attempts: 0, cls: currentUser.cls, sid: currentUser.sid, maxScore: 0 };
-            dbSubmissions[subKey].draftCode = studentEditor.getValue();
-            fetch(`${FIREBASE_BASE_URL}/submissions/${subKey}/draftCode.json`, { method: 'PUT', body: JSON.stringify(dbSubmissions[subKey].draftCode) }).catch(()=>{});
-        };
 
         function navigateProblem(direction) {
-            let probsArray = Object.entries(dbProblems).map(([pId, prob]) => ({ pId, ...prob }));
+            let probsArray = Object.keys(dbProblems);
             probsArray.sort((a, b) => {
-                const idA = a.id || a.title || "";
-                const idB = b.id || b.title || "";
+                const idA = dbProblems[a].id || dbProblems[a].title || "";
+                const idB = dbProblems[b].id || dbProblems[b].title || "";
                 return idA.localeCompare(idB, undefined, { numeric: true, sensitivity: 'base' });
             });
-            const currentIndex = probsArray.findIndex(p => p.pId === currentProblemId);
+            const currentIndex = probsArray.indexOf(currentProblemId);
             const nextIndex = currentIndex + direction;
             if (nextIndex >= 0 && nextIndex < probsArray.length) {
-                openProblem(probsArray[nextIndex].pId);
+                openProblem(probsArray[nextIndex]);
+            } else {
+                alert(direction > 0 ? "這已經是最後一題了！" : "這已經是第一題了！");
             }
+        }
+
+        let currentEditorChangeHandler = null;
+
+        function openProblem(pId) {
+            currentProblemId = pId; const prob = dbProblems[pId]; const subKey = `${currentUser.key}_${pId}`;
+            if (!dbSubmissions[subKey]) dbSubmissions[subKey] = { cls: currentUser.cls, sid: currentUser.sid, name: currentUser.name, pId: pId, maxScore: 0, attempts: 0, history: [] };
+            document.getElementById('problem-title').innerText = prob.title; document.getElementById('problem-desc').innerText = prob.desc || prob.description; 
+            
+            const expectedOutputEl = document.getElementById('problem-expected-output'); const expectedOutputContainer = document.getElementById('expected-output-container');
+            if (prob.expected_output && prob.expected_output.trim() !== "") { expectedOutputEl.innerText = prob.expected_output; expectedOutputContainer.classList.remove('hidden');
+            } else expectedOutputContainer.classList.add('hidden');
+
+            const codeToLoad = dbSubmissions[subKey].code || dbSubmissions[subKey].draftCode || prob.defaultCode || "# 在這裡寫下你的程式碼\n";
+            studentEditor.setValue(codeToLoad, -1);
+            document.getElementById('result-message').classList.add('hidden'); clearTerminal(); updateSubmitStatus(); showView('student-view');
+
+            
+            if (currentEditorChangeHandler) {
+                studentEditor.session.off('change', currentEditorChangeHandler);
+            }
+
+            currentEditorChangeHandler = function() {
+                dbSubmissions[subKey].draftCode = studentEditor.getValue();
+            };
+
+            studentEditor.session.on('change', currentEditorChangeHandler);
         }
 
         function updateSubmitStatus() {
-            const subKey = `${currentUser.key}_${currentProblemId}`;
-            const sub = dbSubmissions[subKey];
-            const btn = document.getElementById('submit-btn');
-            const countSpan = document.getElementById('submission-count');
-            
-            if (cooldownTimer) {
-                clearTimeout(cooldownTimer);
-                cooldownTimer = null;
-            }
-
+            const subKey = `${currentUser.key}_${currentProblemId}`; const sub = dbSubmissions[subKey];
+            const btn = document.getElementById('submit-btn'); const countSpan = document.getElementById('submission-count');
+            if (cooldownTimer) { clearTimeout(cooldownTimer); cooldownTimer = null; }
             if (sub && sub.lastSubmitTimestamp) {
                 const diff = Date.now() - sub.lastSubmitTimestamp;
-                if (diff < 30000) {
-                    btn.disabled = true;
-                    btn.classList.add('opacity-50', 'cursor-not-allowed');
+                if (diff < 30000) { 
+                    btn.disabled = true; btn.classList.add('opacity-50', 'cursor-not-allowed');
                     btn.innerText = `冷卻中 (${Math.ceil((30000 - diff)/1000)}s)`;
                     countSpan.innerText = `總遞交次數：${sub.attempts} (請稍候再遞交)`;
-                    cooldownTimer = setTimeout(updateSubmitStatus, 1000);
-                    return;
+                    cooldownTimer = setTimeout(updateSubmitStatus, 1000); return;
                 }
             }
-            
-            btn.disabled = false;
-            btn.classList.remove('opacity-50', 'cursor-not-allowed');
-            btn.innerText = "🚀 正式遞交";
-            countSpan.innerText = `總遞交次數：${sub ? (sub.attempts || 0) : 0}`;
-        }
-
-        async function patchStudentCode(code, isAsync) {
-            window.student_code_global = code;
-            window.is_async_run = isAsync;
-            await pyodide.runPythonAsync(`
-import ast
-import js
-
-code = js.student_code_global
-
-class LoopPatcher(ast.NodeTransformer):
-    def __init__(self):
-        self.in_function = False
-
-    def visit_FunctionDef(self, node):
-        old = self.in_function
-        self.in_function = True
-        self.generic_visit(node)
-        self.in_function = old
-        return node
-
-    def visit_AsyncFunctionDef(self, node):
-        old = self.in_function
-        self.in_function = True
-        self.generic_visit(node)
-        self.in_function = old
-        return node
-
-    def visit_While(self, node):
-        self.generic_visit(node)
-        if not self.in_function:
-            check_stmt = ast.parse('if getattr(js.window, "isExecuting", False) == False: raise Exception("用戶已取消執行")').body[0]
-            if getattr(js, 'is_async_run', False):
-                sleep_stmt = ast.parse('await __import__("asyncio").sleep(0.1)').body[0]
-            else:
-                sleep_stmt = ast.parse('__import__("time").sleep(0.1)').body[0]
-            node.body.insert(0, sleep_stmt)
-            node.body.insert(0, check_stmt)
-        return node
-
-    def visit_For(self, node):
-        self.generic_visit(node)
-        if not self.in_function:
-            check_stmt = ast.parse('if getattr(js.window, "isExecuting", False) == False: raise Exception("用戶已取消執行")').body[0]
-            if getattr(js, 'is_async_run', False):
-                sleep_stmt = ast.parse('await __import__("asyncio").sleep(0.1)').body[0]
-            else:
-                sleep_stmt = ast.parse('__import__("time").sleep(0.1)').body[0]
-            node.body.insert(0, sleep_stmt)
-            node.body.insert(0, check_stmt)
-        return node
-
-try:
-    tree = ast.parse(code)
-    tree = LoopPatcher().visit(tree)
-    ast.fix_missing_locations(tree)
-    patched_code = ast.unparse(tree)
-except Exception as e:
-    patched_code = code
-
-js.student_code_global = patched_code
-            `);
-            return window.student_code_global;
-        }
-
-        async function toggleTestCode() {
-            const btn = document.getElementById('test-btn');
-            if (window.isExecuting) {
-                window.isExecuting = false;
-                btn.innerText = "🛑 正在取消...";
-                btn.disabled = true;
-                return;
-            }
-            
-            window.isExecuting = true;
-            btn.innerText = "🛑 取消運行";
-            btn.classList.add('bg-red-600', 'text-white', 'dark:bg-red-600', 'dark:text-white');
-            btn.classList.remove('bg-[#1d1d1f]', 'dark:bg-[#f5f5f7]', 'text-white', 'dark:text-[#1d1d1f]');
-            
-            await testCode();
-            
-            window.isExecuting = false;
-            btn.innerText = "🔍 測試程式碼";
-            btn.disabled = false;
-            btn.classList.remove('bg-red-600', 'text-white', 'dark:bg-red-600', 'dark:text-white');
-            btn.classList.add('bg-[#1d1d1f]', 'dark:bg-[#f5f5f7]', 'text-white', 'dark:text-[#1d1d1f]');
+            btn.disabled = false; btn.classList.remove('opacity-50', 'cursor-not-allowed');
+            btn.innerText = "🚀 正式遞交"; countSpan.innerText = `總遞交次數：${sub ? (sub.attempts || 0) : 0}`;
         }
 
         async function testCode() {
+            const btn = document.getElementById('test-btn');
             const resultMsg = document.getElementById('result-message');
-            let studentCode = studentEditor.getValue();
-            
-            resultMsg.classList.add('hidden');
-            clearTerminal();
-            window.appendTerminal(">>> 測試模式：可手動輸入數據進行測試...\n", false);
-            
+            const studentCode = studentEditor.getValue();
+
+            btn.disabled = true; btn.innerText = "執行中..."; resultMsg.classList.add('hidden');
+            clearTerminal(); window.appendTerminal(">>> 測試模式：可手動輸入數據進行測試...\n", false);
+
             try {
-                studentCode = await patchStudentCode(studentCode, true);
-                
                 await pyodide.runPythonAsync(`
 import sys, builtins, js
 sys.stdout = sys.__stdout__
 def custom_input(prompt_text=""):
-    if getattr(js.window, 'isExecuting', False) == False:
-        raise Exception("用戶已取消執行")
     res = js.prompt(prompt_text)
-    if res is None:
-        js.window.isExecuting = False
-        raise Exception("用戶取消了輸入")
+    if res is None: res = ""
     js.window.appendTerminal(str(prompt_text) + str(res) + "\\n", False)
     return res
 builtins.input = custom_input
                 `);
-
                 await pyodide.runPythonAsync(studentCode);
-                
                 window.appendTerminal("\n>>> 程式執行完畢。", false);
                 resultMsg.innerText = "ℹ️ 若確認無誤，請點擊「正式遞交」上傳。";
                 resultMsg.classList.remove('hidden', 'text-red-600', 'text-green-600', 'dark:text-red-400', 'dark:text-green-400');
                 resultMsg.classList.add('text-[#0071e3]');
             } catch (err) {
-                // 取消精簡錯誤訊息：保留原本完整的底層錯誤輸出
-                let errMsg = err.toString();
-                
-                window.appendTerminal("\n>>> 系統執行發生錯誤！\n" + errMsg, true);
+                window.appendTerminal("\n>>> 系統執行發生錯誤！\n" + err.toString(), true);
                 resultMsg.classList.remove('hidden', 'text-green-600', 'text-[#0071e3]', 'dark:text-green-400');
                 resultMsg.classList.add('text-red-600', 'dark:text-red-400');
-                resultMsg.innerText = "❌ 測試失敗，請檢查錯誤訊息。";
+                resultMsg.innerText = "❌ 程式語法錯誤或執行失敗！";
             }
+            btn.innerText = "🔍 測試程式碼"; btn.disabled = false;
         }
 
         async function submitCode() {
             const btn = document.getElementById('submit-btn');
             const resultMsg = document.getElementById('result-message');
-            let studentCode = studentEditor.getValue();
-            
-            const prob = dbProblems[currentProblemId];
-            if (!prob) return;
-
-            btn.disabled = true;
-            btn.innerText = "評分中...";
-            resultMsg.classList.add('hidden');
-            clearTerminal();
-            window.appendTerminal(">>> 開始自動評分 (不會彈出輸入視窗)...\n", false);
-
+            const studentCode = studentEditor.getValue();
             const subKey = `${currentUser.key}_${currentProblemId}`;
-            if (!dbSubmissions[subKey]) dbSubmissions[subKey] = { attempts: 0, cls: currentUser.cls, sid: currentUser.sid, maxScore: 0 };
+            const prob = dbProblems[currentProblemId];
+
+            btn.disabled = true; btn.innerText = "遞交中..."; resultMsg.classList.add('hidden');
+            clearTerminal(); window.appendTerminal(">>> 系統紀錄與處理中...\n", false);
+            
+            let scriptField = prob.testScript || prob.test_script;
+            let injectedCode = studentCode;
+
+            if (!scriptField.includes('"""{STUDENT_CODE}"""') && scriptField.includes('try:\n{STUDENT_CODE}')) {
+                injectedCode = studentCode.split('\n').map(line => '    ' + line).join('\n') + '\n    pass';
+            }
+
+            let pythonTestScript = scriptField.replace('{STUDENT_CODE}', injectedCode);
+            pythonTestScript = pythonTestScript.replace('{EXPECTED_OUTPUT}', prob.expected_output || "");
+
+            let score = 0, passed = 0, total = 1;
 
             try {
-                let patchedStudentCode = await patchStudentCode(studentCode, false);
-                const script = prob.testScript.replace('{STUDENT_CODE}', patchedStudentCode.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/'/g, "\\'").replace(/\n/g, '\\n'));
-                
-                const resStr = await pyodide.runPythonAsync(script);
-                const resParts = String(resStr).split(',');
-                
-                const passed = parseInt(resParts[0]);
-                const score = parseInt(resParts[resParts.length - 1]);
-
-                window.appendTerminal(`>>> 評分結果：${score} 分\n`, passed !== 1);
-                
-                const awaySeconds = totalAwayTime || 0;
-                const currentTimeStr = new Date().toLocaleString('zh-HK');
-                const currentTimestamp = Date.now();
-
-                if (!dbSubmissions[subKey].history) dbSubmissions[subKey].history = [];
-                dbSubmissions[subKey].history.push({
-                    time: currentTimeStr,
-                    code: studentCode,
-                    score: score
-                });
-
-                dbSubmissions[subKey].attempts += 1;
-                dbSubmissions[subKey].lastSubmitTime = currentTimeStr;
-                dbSubmissions[subKey].lastSubmitTimestamp = currentTimestamp;
-                dbSubmissions[subKey].awayTime = awaySeconds;
-                dbSubmissions[subKey].code = studentCode;
-                dbSubmissions[subKey].draftCode = studentCode;
-                
-                if (score > (dbSubmissions[subKey].maxScore || 0)) {
-                    dbSubmissions[subKey].maxScore = score;
+                let result = await pyodide.runPythonAsync(pythonTestScript);
+                if (typeof result === 'string' && result.includes(',')) {
+                    [passed, total, score] = result.split(',').map(Number);
+                } else { 
+                    passed = pyodide.globals.get('passed') || 0; 
+                    score = pyodide.globals.get('score') || 0; 
+                    total = 1; 
                 }
+            } catch (err) { score = 0; }
 
-                try {
-                    await fetch(`${FIREBASE_BASE_URL}/submissions/${subKey}.json`, { method: 'PUT', body: JSON.stringify(dbSubmissions[subKey]) });
-                    window.appendTerminal(">>> 遞交程序完成。系統已紀錄你的最新程式碼！", false);
-                    resultMsg.innerText = "✅ 遞交成功！你的程式碼已送出。";
-                    resultMsg.classList.remove('hidden', 'text-red-600', 'text-[#0071e3]', 'dark:text-red-400');
-                    resultMsg.classList.add('text-green-600', 'dark:text-green-400');
-                } catch (networkErr) {
-                    resultMsg.innerText = "❌ 網路問題導致上傳失敗，請檢查網路狀態。";
-                    resultMsg.classList.remove('hidden', 'text-green-600', 'text-[#0071e3]', 'dark:text-green-400');
-                    resultMsg.classList.add('text-red-600', 'dark:text-red-400');
-                }
-            } catch (err) {
-                window.appendTerminal("\n>>> 系統評分發生錯誤！請檢查語法或尋求老師協助。\n" + err.toString(), true);
-                resultMsg.innerText = "❌ 評分腳本執行失敗。";
-                resultMsg.classList.remove('hidden', 'text-green-600', 'text-[#0071e3]', 'dark:text-green-400');
+            const currentTimestamp = Date.now();
+            const currentTimeStr = getFormattedTime(); 
+            const awaySeconds = Math.floor(totalAwayTime / 1000);
+
+            if (!dbSubmissions[subKey]) dbSubmissions[subKey] = { cls: currentUser.cls, sid: currentUser.sid, name: currentUser.name, pId: currentProblemId, maxScore: 0, attempts: 0, history: [] };
+            if (!dbSubmissions[subKey].history) dbSubmissions[subKey].history = [];
+
+            dbSubmissions[subKey].history.push({ time: currentTimeStr, code: studentCode, score: score });
+            dbSubmissions[subKey].attempts += 1; 
+            dbSubmissions[subKey].lastSubmitTime = currentTimeStr; 
+            dbSubmissions[subKey].lastSubmitTimestamp = currentTimestamp;
+            dbSubmissions[subKey].awayTime = awaySeconds; 
+            dbSubmissions[subKey].code = studentCode;
+            dbSubmissions[subKey].draftCode = studentCode; 
+            
+            if (score > (dbSubmissions[subKey].maxScore || 0)) {
+                dbSubmissions[subKey].maxScore = score;
+            }
+            
+            try {
+                await fetch(`${FIREBASE_BASE_URL}/submissions/${subKey}.json`, { method: 'PUT', body: JSON.stringify(dbSubmissions[subKey]) });
+                window.appendTerminal(">>> 遞交程序完成。系統已紀錄你的最新程式碼！", false);
+                resultMsg.innerText = "✅ 遞交成功！你的程式碼已送出。"; 
+                resultMsg.classList.remove('hidden', 'text-red-600', 'text-[#0071e3]', 'dark:text-red-400');
+                resultMsg.classList.add('text-green-600', 'dark:text-green-400');
+
+            } catch (networkErr) {
+                resultMsg.innerText = "❌ 網路問題導致上傳失敗，請檢查網路狀態。";
+                resultMsg.classList.remove('hidden', 'text-green-600', 'text-[#0071e3]', 'dark:text-green-400'); 
                 resultMsg.classList.add('text-red-600', 'dark:text-red-400');
             }
             
             updateSubmitStatus();
         }
 
-        // --- 老師專區 ---
-
-        function showTeacherLogin() {
-            document.getElementById('teacher-modal').classList.remove('hidden');
-        }
-
-        function closeTeacherModal() {
-            document.getElementById('teacher-modal').classList.add('hidden');
-        }
-
+        function showTeacherLogin() { document.getElementById('teacher-modal').classList.remove('hidden'); }
+        function closeTeacherModal() { document.getElementById('teacher-modal').classList.add('hidden'); }
+        
         async function verifyTeacher() {
             const btn = document.getElementById('teacher-login-btn');
             try {
                 btn.disabled = true;
                 btn.innerText = "驗證中...";
+                
                 const result = await auth.signInWithPopup(provider);
                 const user = result.user;
+
                 if (user.email !== ALLOWED_TEACHER_EMAIL) {
                     alert("登入失敗：這不是授權的老師帳號！");
                     await auth.signOut();
                     return;
                 }
-                teacherToken = await user.getIdToken();
-                closeTeacherModal();
-                
-                await loadDataAndRender();
-                updateTeacherProblemFilter();
-                showView('teacher-view');
 
-                firebase.database().ref('submissions').on('value', (snapshot) => {
-                    dbSubmissions = snapshot.val() || {};
-                    renderTeacherTable();
-                });
+                teacherToken = await user.getIdToken();
+
+                closeTeacherModal(); 
+                await loadDataAndRender(); 
+                updateTeacherProblemFilter(); 
+                showView('teacher-view');
                 
             } catch (error) {
                 console.error("登入失敗:", error);
@@ -985,35 +879,73 @@ builtins.input = custom_input
                 btn.innerHTML = `<img class="h-5 w-5 mr-3" src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google">使用 Google 帳號登入`;
             }
         }
+        
+        async function teacherLogout() {
+            await auth.signOut();
+            teacherToken = null;
+            showLogin();
+        }
+
+        function showCodeModal(subKey) {
+            const sub = dbSubmissions[subKey]; if (!sub) return; currentViewingSub = sub;
+            const probTitle = dbProblems[sub.pId] ? dbProblems[sub.pId].title : '未知題目';
+            document.getElementById('code-modal-title').innerText = `${sub.cls}班 ${sub.sid}號 - ${probTitle}`;
+            
+            const selector = document.getElementById('history-selector'); selector.innerHTML = '';
+            if (sub.history && sub.history.length > 0) {
+                sub.history.forEach((h, idx) => {
+                    const opt = document.createElement('option'); opt.value = idx; 
+                    opt.text = `[${h.time}] 得分: ${h.score}`; 
+                    selector.appendChild(opt);
+                }); selector.value = sub.history.length - 1; 
+            } else selector.innerHTML = '<option value="-1">無歷史紀錄 (或舊版資料)</option>';
+            
+            renderSelectedHistory(); 
+            document.getElementById('code-modal').classList.remove('hidden');
+        }
+
+        function renderSelectedHistory() {
+            if (!currentViewingSub) return;
+            const selector = document.getElementById('history-selector'); 
+            
+            if (selector.value === "-1" || !currentViewingSub.history) { 
+                teacherHistoryEditor.setValue(currentViewingSub.code || '# 無程式碼記錄', -1); 
+                return; 
+            }
+            
+            const h = currentViewingSub.history[selector.value];
+            teacherHistoryEditor.setValue(h.code || '# 無程式碼記錄', -1);
+            teacherHistoryEditor.clearSelection();
+        }
+
+        function closeCodeModal() { document.getElementById('code-modal').classList.add('hidden'); currentViewingSub = null; }
+
+        function switchTeacherTab(tab) {
+            document.getElementById('teacher-tab-grades').classList.add('hidden'); document.getElementById('teacher-tab-problems').classList.add('hidden');
+            document.getElementById('tab-btn-grades').className = "px-5 py-2 text-[14px] font-medium text-apple-textSecLight dark:text-apple-textSecDark hover:text-apple-textLight dark:hover:text-apple-textDark transition rounded-[8px]"; 
+            document.getElementById('tab-btn-problems').className = "px-5 py-2 text-[14px] font-medium text-apple-textSecLight dark:text-apple-textSecDark hover:text-apple-textLight dark:hover:text-apple-textDark transition rounded-[8px]";
+            
+            document.getElementById(`teacher-tab-${tab}`).classList.remove('hidden'); 
+            document.getElementById(`tab-btn-${tab}`).className = "px-5 py-2 bg-white dark:bg-[#1d1d1f] shadow-sm rounded-[8px] text-[14px] font-bold text-apple-textLight dark:text-apple-textDark transition";
+        }
 
         async function loadDataAndRender() {
-            if (!teacherToken) return;
-            const authQuery = `?auth=${teacherToken}`;
-            const pRes = await fetch(`${FIREBASE_BASE_URL}/problems.json${authQuery}`).then(r => r.json());
-            dbProblems = pRes || {};
-            const sysRes = await fetch(`${FIREBASE_BASE_URL}/system.json${authQuery}`).then(r => r.json());
-            activeSystemKey = sysRes || null;
-            if (activeSystemKey && activeSystemKey.key)
-                dbSessionStats = await fetch(`${FIREBASE_BASE_URL}/session_stats/${activeSystemKey.key}.json${authQuery}`).then(r => r.json()) || {};
+            const [probRes, subRes, sysRes] = await Promise.all([
+                fetch(`${FIREBASE_BASE_URL}/problems.json`).then(r => r.json()),
+                fetch(`${FIREBASE_BASE_URL}/submissions.json`).then(r => r.json()),
+                fetch(`${FIREBASE_BASE_URL}/system.json`).then(r => r.json())
+            ]);
+            dbProblems = probRes || {}; dbSubmissions = subRes || {}; activeSystemKey = sysRes || null;
+            if (activeSystemKey && activeSystemKey.key) dbSessionStats = await fetch(`${FIREBASE_BASE_URL}/session_stats/${activeSystemKey.key}.json`).then(r => r.json()) || {};
             else dbSessionStats = {};
-            
-            renderTeacherTable();
-            renderTeacherProblemList();
-            renderKeyStatus();
+            renderTeacherTable(); renderTeacherProblemList(); renderKeyStatus(); 
         }
 
         function updateTeacherProblemFilter() {
-            const filter = document.getElementById('teacher-problem-filter');
-            filter.innerHTML = '<option value="all">全部題目</option>';
+            const filter = document.getElementById('teacher-problem-filter'); filter.innerHTML = '<option value="all">全部題目</option>';
             let probsArray = Object.entries(dbProblems).map(([pId, prob]) => ({ pId, ...prob }));
-            probsArray.sort((a, b) => {
-                const idA = a.id || a.title || "";
-                const idB = b.id || b.title || "";
-                return idA.localeCompare(idB, undefined, { numeric: true, sensitivity: 'base' });
-            });
-            probsArray.forEach(prob => {
-                filter.innerHTML += `<option value="${prob.pId}">${prob.title}</option>`;
-            });
+            probsArray.sort((a, b) => { const idA = a.id || a.title || ""; const idB = b.id || b.title || ""; return idA.localeCompare(idB, undefined, { numeric: true, sensitivity: 'base' }); });
+            probsArray.forEach(prob => { filter.innerHTML += `<option value="${prob.pId}">${prob.title}</option>`; });
         }
 
         function generateLeaderboard(type) {
@@ -1025,11 +957,12 @@ builtins.input = custom_input
                 }
                 studentStats[key].totalScore += (sub.maxScore || 0);
                 if (sub.attempts > 0) studentStats[key].completedCount += 1;
-                studentStats[key].awayTime = Math.max(studentStats[key].awayTime, sub.awayTime || 0);
+                studentStats[key].awayTime = Math.max(studentStats[key].awayTime, sub.awayTime || 0); 
             });
 
             let sorted = Object.values(studentStats);
             let title = "";
+            
             if (type === 'score') {
                 title = "🏆 綜合高分龍虎榜 (依總分排序)";
                 sorted.sort((a, b) => b.totalScore - a.totalScore || a.awayTime - b.awayTime);
@@ -1038,246 +971,133 @@ builtins.input = custom_input
                 sorted = sorted.filter(s => s.completedCount > 0);
                 sorted.sort((a, b) => a.awayTime - b.awayTime || b.totalScore - a.totalScore);
             }
-            
+
             let msg = `${title}\n──────────────────────\n`;
             if (sorted.length === 0) {
                 msg += "目前尚無學生成績資料。";
             } else {
-                sorted.slice(0, 10).forEach((s, idx) => {
+                sorted.slice(0, 10).forEach((s, idx) => { 
                     msg += `第 ${idx+1} 名 | ${s.cls}班 ${s.sid}號\n`;
-                    msg += `   ↳ 總分: ${s.totalScore} | 離開視窗: ${s.awayTime} 秒 | 完成題數: ${s.completedCount}\n`;
+                    msg += `   ↳ 總分: ${s.totalScore} | 離開視窗: ${s.awayTime} 秒 | 完成題數: ${s.completedCount}\n\n`;
                 });
             }
             alert(msg);
         }
 
-        function getAuthQuery() {
-            return teacherToken ? `?auth=${teacherToken}` : '';
-        }
-
         function renderTeacherTable() {
-            const tbody = document.getElementById('teacher-table-body');
-            tbody.innerHTML = '';
-            
-            const probFilter = document.getElementById('teacher-problem-filter').value;
-            const dateFilter = document.getElementById('teacher-date-filter').value;
-
-            let subs = Object.entries(dbSubmissions).map(([k, v]) => ({ key: k, ...v }));
-
-            if (dateFilter) {
-                subs = subs.filter(sub => {
-                    if (!sub.lastSubmitTimestamp) return false;
-                    const d = new Date(sub.lastSubmitTimestamp);
-                    const yyyy = d.getFullYear();
-                    const mm = String(d.getMonth() + 1).padStart(2, '0');
-                    const dd = String(d.getDate()).padStart(2, '0');
-                    return `${yyyy}-${mm}-${dd}` === dateFilter;
-                });
-            }
-
-            if (probFilter !== 'all') {
-                subs = subs.filter(sub => sub.key.endsWith(`_${probFilter}`));
-            }
-
-            subs.sort((a, b) => {
-                if (a.cls !== b.cls) return a.cls.localeCompare(b.cls);
-                return a.sid.localeCompare(b.sid);
-            });
-
-            subs.forEach(sub => {
+            const tbody = document.getElementById('teacher-table-body'); tbody.innerHTML = '';
+            const filterPId = document.getElementById('teacher-problem-filter').value;
+            let subs = Object.values(dbSubmissions); if (filterPId !== 'all') subs = subs.filter(s => s.pId === filterPId);
+            subs.sort((a, b) => { if (a.cls !== b.cls) return a.cls.localeCompare(b.cls); return a.sid.localeCompare(b.sid); }).forEach(s => {
+                const probTitle = dbProblems[s.pId] ? dbProblems[s.pId].title : '未知題目'; const timeText = s.lastSubmitTime || '--';
+                
+                let awaySec = s.awayTime || 0; 
+                
+                const currentSubKey = `${s.cls}-${s.sid}_${s.pId}`;
                 const tr = document.createElement('tr');
-                const probId = sub.key.split('_').slice(1).join('_');
-                const probTitle = dbProblems[probId] ? dbProblems[probId].title : '未知題目';
-                const currentSubKey = sub.key;
-                
-                const timeText = sub.lastSubmitTime || '無紀錄';
-                const awaySec = sub.awayTime || 0;
-                
-                tr.className = "hover:bg-gray-50 dark:hover:bg-[#373739] transition";
+                tr.className = "hover:bg-gray-50 dark:hover:bg-[#1d1d1f] transition";
                 tr.innerHTML = `
-                    <td class="py-3 px-4">${sub.cls}</td>
-                    <td class="py-3 px-4">${sub.sid}</td>
-                    <td class="py-3 px-4">${probTitle}</td>
-                    <td class="py-3 px-4 font-bold text-[#0071e3]">${sub.maxScore || 0}</td>
-                    <td class="py-3 px-4">${sub.attempts || 0}</td>
-                    <td class="py-3 px-4 text-apple-textSecLight dark:text-apple-textSecDark text-[12px] font-bold">${timeText}</td>
+                    <td class="py-3 px-4 font-medium text-apple-textLight dark:text-apple-textDark">${s.cls}</td>
+                    <td class="py-3 px-4 font-medium text-apple-textLight dark:text-apple-textDark">${s.sid}</td>
+                    <td class="py-3 px-4 font-medium text-apple-textLight dark:text-apple-textDark truncate max-w-xs" title="${probTitle}">${probTitle}</td>
+                    <td class="py-3 px-4 font-bold ${s.maxScore === 100 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}">${s.maxScore || 0}</td>
+                    <td class="py-3 px-4 text-apple-textLight dark:text-apple-textDark font-medium">${s.attempts}</td>
+                    <td class="py-3 px-4 text-[#0071e3] font-mono text-[12px] font-bold">${timeText}</td>
                     <td class="py-3 px-4 font-bold ${awaySec > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}">${awaySec} 秒</td>
                     <td class="py-3 px-4 text-center"><button onclick="showCodeModal('${currentSubKey}')" class="apple-btn-pill font-medium text-[12px] py-1 px-3">查看紀錄</button></td>
-                `;
-                tbody.appendChild(tr);
+                `; tbody.appendChild(tr);
             });
         }
 
         function editProblem(pId) {
-            const prob = dbProblems[pId];
-            editingProblemId = pId;
-            document.getElementById('editor-form-title').innerText = "編輯題目";
-            document.getElementById('new-prob-title').value = prob.title;
-            document.getElementById('new-prob-desc').value = prob.desc || prob.description;
-            document.getElementById('new-prob-expected').value = prob.expected_output || '';
-            teacherDefaultEditor.setValue(prob.defaultCode || "# 在這裡寫下你的程式碼\n", -1);
-            teacherTestEditor.setValue(prob.testScript || prob.test_script, -1);
-            document.getElementById('save-prob-btn').innerText = "更新題目";
-            document.getElementById('cancel-edit-btn').classList.remove('hidden');
-            document.getElementById('problem-editor-section').scrollIntoView({ behavior: 'smooth' });
+            const prob = dbProblems[pId]; editingProblemId = pId;
+            document.getElementById('editor-form-title').innerText = "編輯題目"; document.getElementById('new-prob-title').value = prob.title; document.getElementById('new-prob-desc').value = prob.desc || prob.description; document.getElementById('new-prob-expected').value = prob.expected_output || '';
+            teacherDefaultEditor.setValue(prob.defaultCode || "# 在這裡寫下你的程式碼\n", -1); teacherTestEditor.setValue(prob.testScript || prob.test_script, -1);
+            document.getElementById('save-prob-btn').innerText = "更新題目"; document.getElementById('cancel-edit-btn').classList.remove('hidden'); document.getElementById('problem-editor-section').scrollIntoView({ behavior: 'smooth' });
         }
 
         function cancelEdit() {
-            editingProblemId = null;
-            document.getElementById('editor-form-title').innerText = "新增/編輯題目";
-            document.getElementById('new-prob-title').value = '';
-            document.getElementById('new-prob-desc').value = '';
-            document.getElementById('new-prob-expected').value = '';
-            teacherDefaultEditor.setValue("# 在這裡寫下你的程式碼\n", -1);
-            teacherTestEditor.setValue(defaultBeginnerTestScript, -1);
-            document.getElementById('save-prob-btn').innerText = "儲存題目";
-            document.getElementById('cancel-edit-btn').classList.add('hidden');
+            editingProblemId = null; document.getElementById('editor-form-title').innerText = "新增/編輯題目"; document.getElementById('new-prob-title').value = ''; document.getElementById('new-prob-desc').value = ''; document.getElementById('new-prob-expected').value = '';
+            teacherDefaultEditor.setValue("# 在這裡寫下你的程式碼\n", -1); teacherTestEditor.setValue(defaultBeginnerTestScript, -1);
+            document.getElementById('save-prob-btn').innerText = "儲存題目"; document.getElementById('cancel-edit-btn').classList.add('hidden');
         }
 
         async function saveProblem() {
             if(!teacherToken) return alert("請先登入");
-            const title = document.getElementById('new-prob-title').value.trim();
-            const desc = document.getElementById('new-prob-desc').value.trim();
-            const expected_output = document.getElementById('new-prob-expected').value.trim();
-            const defaultCode = teacherDefaultEditor.getValue();
-            const testScript = teacherTestEditor.getValue();
-
-            if(!title || !desc || !testScript.includes('{STUDENT_CODE}')) {
-                alert("請填寫完整資訊，且測試腳本必須包含 {STUDENT_CODE} 標籤！");
-                return;
-            }
-
+            const title = document.getElementById('new-prob-title').value.trim(); const desc = document.getElementById('new-prob-desc').value.trim(); const expected_output = document.getElementById('new-prob-expected').value.trim(); const defaultCode = teacherDefaultEditor.getValue(); const testScript = teacherTestEditor.getValue();
+            if(!title || !desc || !testScript.includes('{STUDENT_CODE}')) { alert("請填寫完整資訊，且測試腳本必須包含 {STUDENT_CODE} 標籤！"); return; }
             const pId = editingProblemId ? editingProblemId : 'prob_' + Date.now();
             dbProblems[pId] = { title, desc, expected_output, defaultCode, testScript };
-            
-            try {
-                await fetch(`${FIREBASE_BASE_URL}/problems/${pId}.json${getAuthQuery()}`, { method: 'PUT', body: JSON.stringify(dbProblems[pId]) });
-                alert(editingProblemId ? "更新成功！" : "新增成功！");
-                cancelEdit();
-                renderTeacherProblemList();
-                updateTeacherProblemFilter();
-            } catch (err) {
-                alert("儲存失敗！");
-            }
+            await fetch(`${FIREBASE_BASE_URL}/problems/${pId}.json${getAuthQuery()}`, { method: 'PUT', body: JSON.stringify(dbProblems[pId]) });
+            alert(editingProblemId ? "題目更新成功！" : "題目新增成功！"); cancelEdit(); renderTeacherProblemList(); updateTeacherProblemFilter();
         }
 
         function renderTeacherProblemList() {
-            const listDiv = document.getElementById('teacher-problem-list');
-            listDiv.innerHTML = '';
-            const searchKw = document.getElementById('teacher-problem-search').value.toLowerCase();
-            
+            const list = document.getElementById('teacher-problem-list'); list.innerHTML = '';
+            const searchKw = (document.getElementById('teacher-problem-search')?.value || '').toLowerCase();
             let probsArray = Object.entries(dbProblems).map(([pId, prob]) => ({ pId, ...prob }));
-            probsArray.sort((a, b) => {
-                const idA = a.id || a.title || "";
-                const idB = b.id || b.title || "";
-                return idA.localeCompare(idB, undefined, { numeric: true, sensitivity: 'base' });
-            });
-
+            probsArray.sort((a, b) => { const idA = a.id || a.title || ""; const idB = b.id || b.title || ""; return idA.localeCompare(idB, undefined, { numeric: true, sensitivity: 'base' }); });
             probsArray.forEach(prob => {
-                if (searchKw && !prob.title.toLowerCase().includes(searchKw)) return;
-                const li = document.createElement('li');
-                li.className = "flex justify-between items-center p-3 border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1d1d1f] rounded-[8px] mb-2";
+                const searchTarget = (prob.id || "") + " " + (prob.title || "");
+                if (searchKw && !searchTarget.toLowerCase().includes(searchKw)) return;
+                const li = document.createElement('li'); li.className = "flex justify-between items-center border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1d1d1f] p-3 rounded-[8px] mb-2 shadow-sm";
                 li.innerHTML = `
-                    <div class="flex items-center">
-                        <input type="checkbox" class="problem-checkbox w-4 h-4 mr-3 rounded cursor-pointer" value="${prob.pId}" onchange="updateSelectedCount()">
-                        <span class="font-bold text-[14px] text-apple-textLight dark:text-apple-textDark">${prob.title}</span>
-                    </div>
-                    <div class="space-x-2">
-                        <button onclick="editProblem('${prob.pId}')" class="text-[#0071e3] text-[12px] font-bold hover:underline">編輯</button>
-                    </div>
-                `;
-                listDiv.appendChild(li);
-            });
-            updateSelectedCount();
+                    <div class="flex items-center overflow-hidden"><input type="checkbox" class="problem-checkbox w-4 h-4 mr-3 cursor-pointer rounded border-gray-300 dark:border-gray-600" value="${prob.pId}" onchange="updateSelectedCount()"><span class="font-bold text-[14px] text-apple-textLight dark:text-apple-textDark truncate" title="${prob.title}">${prob.title}</span></div>
+                    <div class="space-x-4 flex-shrink-0 ml-2"><button onclick="editProblem('${prob.pId}')" class="text-[#0071e3] font-bold text-[14px] hover:underline">編輯</button><button onclick="deleteProblem('${prob.pId}')" class="text-red-600 dark:text-red-400 font-bold text-[14px] hover:underline">刪除</button></div>
+                `; list.appendChild(li);
+            }); updateSelectedCount();
         }
 
         function updateSelectedCount() {
-            const checkboxes = document.querySelectorAll('.problem-checkbox:checked');
-            const allCheckboxes = document.querySelectorAll('.problem-checkbox');
-            const selectAllCheckbox = document.getElementById('selectAllCheckbox');
-            const count = checkboxes.length;
-            document.getElementById('selectedCount').textContent = count;
-            const btn = document.getElementById('bulkDeleteBtn');
-            if (count > 0) {
-                btn.classList.remove('opacity-50', 'cursor-not-allowed');
-                btn.disabled = false;
-            } else {
-                btn.classList.add('opacity-50', 'cursor-not-allowed');
-                btn.disabled = true;
-            }
-            if (allCheckboxes.length > 0) selectAllCheckbox.checked = (count === allCheckboxes.length);
-            else selectAllCheckbox.checked = false;
+            const checkboxes = document.querySelectorAll('.problem-checkbox:checked'); const count = checkboxes.length;
+            const btn = document.getElementById('bulkDeleteBtn'); const countSpan = document.getElementById('selectedCount'); const selectAllCheckbox = document.getElementById('selectAllCheckbox'); const allCheckboxes = document.querySelectorAll('.problem-checkbox');
+            countSpan.textContent = count;
+            if (count > 0) { btn.classList.remove('opacity-50', 'cursor-not-allowed'); btn.disabled = false; } else { btn.classList.add('opacity-50', 'cursor-not-allowed'); btn.disabled = true; }
+            if (allCheckboxes.length > 0) selectAllCheckbox.checked = (count === allCheckboxes.length); else selectAllCheckbox.checked = false;
         }
 
-        function toggleSelectAll(source) {
-            document.querySelectorAll('.problem-checkbox').forEach(cb => cb.checked = source.checked);
-            updateSelectedCount();
-        }
+        function toggleSelectAll(source) { document.querySelectorAll('.problem-checkbox').forEach(cb => cb.checked = source.checked); updateSelectedCount(); }
 
         async function bulkDeleteProblems() {
             if(!teacherToken) return alert("請先登入");
-            const checkboxes = document.querySelectorAll('.problem-checkbox:checked');
-            if (checkboxes.length === 0) return;
+            const checkboxes = document.querySelectorAll('.problem-checkbox:checked'); if (checkboxes.length === 0) return;
             if (!confirm(`⚠️ 警告：確定要刪除這 ${checkboxes.length} 題嗎？\n刪除後將無法復原！`)) return;
-            
-            document.getElementById('bulkDeleteBtn').textContent = "刪除中...";
-            document.getElementById('bulkDeleteBtn').disabled = true;
-
-            const updates = {};
-            checkboxes.forEach(cb => {
-                const pId = cb.value;
-                updates[pId] = null;
-                delete dbProblems[pId];
-            });
-
+            document.getElementById('bulkDeleteBtn').textContent = "刪除中..."; document.getElementById('bulkDeleteBtn').disabled = true;
+            const updates = {}; checkboxes.forEach(cb => { const pId = cb.value; updates[pId] = null; delete dbProblems[pId]; });
             try {
                 await fetch(`${FIREBASE_BASE_URL}/problems.json${getAuthQuery()}`, { method: 'PATCH', body: JSON.stringify(updates) });
-                alert(`✅ 成功刪除 ${checkboxes.length} 題！`);
-                document.getElementById('selectAllCheckbox').checked = false;
-                renderTeacherProblemList();
-                updateTeacherProblemFilter();
-            } catch (err) {
-                alert("刪除失敗！");
-            } finally {
-                document.getElementById('bulkDeleteBtn').innerHTML = `🗑️ 刪除 (<span id="selectedCount">0</span>)`;
-            }
+                alert(`✅ 成功刪除 ${checkboxes.length} 題！`); document.getElementById('selectAllCheckbox').checked = false;
+                renderTeacherProblemList(); updateTeacherProblemFilter(); renderTeacherTable(); 
+            } catch (err) { alert("刪除失敗，請檢查網路連線。"); } finally { document.getElementById('bulkDeleteBtn').innerHTML = `🗑️ 刪除 (<span id="selectedCount">0</span>)`; updateSelectedCount(); }
         }
 
-        async function clearSubmissions() {
+        async function deleteProblem(pId) {
             if(!teacherToken) return alert("請先登入");
-            if (confirm("⚠️ 確定要清除「所有學生成績與遞交記錄」嗎？\n(此動作無法復原！)")) {
-                try {
-                    await fetch(`${FIREBASE_BASE_URL}/submissions.json${getAuthQuery()}`, { method: 'DELETE' });
-                    dbSubmissions = {};
-                    renderTeacherTable();
-                    alert("✅ 已清空所有成績！");
-                } catch (e) {
-                    alert("清除失敗！");
-                }
+            if(confirm("確定要單獨刪除此題目嗎？")) {
+                delete dbProblems[pId]; await fetch(`${FIREBASE_BASE_URL}/problems/${pId}.json${getAuthQuery()}`, { method: 'DELETE' });
+                if (editingProblemId === pId) cancelEdit(); renderTeacherProblemList(); updateTeacherProblemFilter(); renderTeacherTable();
             }
         }
 
-        function switchTeacherTab(tabName) {
-            document.getElementById('teacher-tab-grades').classList.add('hidden');
-            document.getElementById('teacher-tab-problems').classList.add('hidden');
-            document.getElementById('tab-btn-grades').className = "px-5 py-2 text-[14px] font-medium text-apple-textSecLight dark:text-apple-textSecDark hover:text-apple-textLight dark:hover:text-apple-textDark transition rounded-[8px]";
-            document.getElementById('tab-btn-problems').className = "px-5 py-2 text-[14px] font-medium text-apple-textSecLight dark:text-apple-textSecDark hover:text-apple-textLight dark:hover:text-apple-textDark transition rounded-[8px]";
-            
-            document.getElementById(`teacher-tab-${tabName}`).classList.remove('hidden');
-            document.getElementById(`tab-btn-${tabName}`).className = "px-5 py-2 bg-white dark:bg-[#1d1d1f] shadow-sm rounded-[8px] text-[14px] font-bold text-apple-textLight dark:text-apple-textDark transition";
+        async function clearSubmissions() { 
+            if(!teacherToken) return alert("請先登入");
+            if(confirm('確定要清除所有學生成績嗎？此操作無法復原！')) { 
+                dbSubmissions = {}; 
+                await fetch(`${FIREBASE_BASE_URL}/submissions.json${getAuthQuery()}`, { method: 'DELETE' }); 
+                renderTeacherTable(); 
+            } 
         }
 
         function downloadJSONTemplate() {
-            const template = [{ title: "範例題目", desc: "這是一個測試題目", expected_output: "Hello World", defaultCode: "# 在這裡寫下你的程式碼\n", testScript: defaultBeginnerTestScript }];
-            const blob = new Blob([JSON.stringify(template, null, 2)], { type: "application/json" });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url; a.download = "problems_template.json"; a.click(); URL.revokeObjectURL(url);
+            const template = [{ "title": "加法運算 (無腦穩定比對)", "desc": "請寫一個程式，印出 10 加 5 的結果。", "expected_output": "15", "defaultCode": "a = 10\nb = 5\n# 在這裡寫下你的程式碼\n", "testScript": defaultBeginnerTestScript }];
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(template, null, 4));
+            const downloadAnchorNode = document.createElement('a'); downloadAnchorNode.setAttribute("href", dataStr); downloadAnchorNode.setAttribute("download", "problem_template.json");
+            document.body.appendChild(downloadAnchorNode); downloadAnchorNode.click(); downloadAnchorNode.remove();
         }
 
-        function handleImportJSON(event) {
-            const file = event.target.files[0];
-            if (!file) return;
+        async function handleImportJSON(event) {
+            if(!teacherToken) return alert("請先登入");
+            const file = event.target.files[0]; if (!file) return;
             const reader = new FileReader();
             reader.onload = async function(e) {
                 try {
@@ -1296,88 +1116,7 @@ builtins.input = custom_input
                     } else alert("未能匯入任何題目。");
                 } catch (err) { alert("匯入失敗：檔案無法解析為正確的 JSON 格式。"); }
                 event.target.value = '';
-            }; 
-            reader.readAsText(file);
-        }
-
-        async function teacherLogout() {
-            await auth.signOut();
-            teacherToken = null;
-            dbSubmissions = {};
-            firebase.database().ref('submissions').off('value');
-            showLogin();
-        }
-
-        function showCodeModal(subKey) {
-            const sub = dbSubmissions[subKey];
-            if (!sub) return;
-            const history = sub.history || [{ time: sub.lastSubmitTime, code: sub.code, score: sub.maxScore }];
-            const selector = document.getElementById('history-selector');
-            selector.innerHTML = '';
-            
-            history.forEach((record, index) => {
-                const opt = document.createElement('option');
-                opt.value = index;
-                opt.text = `${record.time} (得分: ${record.score})`;
-                selector.appendChild(opt);
-            });
-            selector.value = history.length - 1;
-            
-            window.currentViewingHistory = history;
-            renderSelectedHistory();
-            document.getElementById('code-modal').classList.remove('hidden');
-        }
-
-        function renderSelectedHistory() {
-            const index = document.getElementById('history-selector').value;
-            if(window.currentViewingHistory && window.currentViewingHistory[index]) {
-                teacherHistoryEditor.setValue(window.currentViewingHistory[index].code || '', -1);
-            }
-        }
-
-        function closeCodeModal() {
-            document.getElementById('code-modal').classList.add('hidden');
-            window.currentViewingHistory = null;
-        }
-
-        // --- 防作弊相關 ---
-        async function generateClassroomKey() {
-            if(!teacherToken) return;
-            const key = Math.floor(100000 + Math.random() * 900000).toString();
-            const expiresAt = Date.now() + 120 * 60 * 1000;
-            const sysData = { key, expiresAt };
-            try {
-                await fetch(`${FIREBASE_BASE_URL}/system.json${getAuthQuery()}`, { method: 'PUT', body: JSON.stringify(sysData) });
-                activeSystemKey = sysData;
-                await fetch(`${FIREBASE_BASE_URL}/session_stats/${key}.json${getAuthQuery()}`, { method: 'PUT', body: JSON.stringify({ createdAt: Date.now() }) });
-                renderKeyStatus();
-                alert(`✅ 新密碼已產生: ${key} (有效時間 120 分鐘)`);
-            } catch(e) { alert("產生密碼失敗！"); }
-        }
-
-        async function disableClassroomKey() {
-            if(!teacherToken) return;
-            try {
-                await fetch(`${FIREBASE_BASE_URL}/system.json${getAuthQuery()}`, { method: 'PUT', body: JSON.stringify({ key: null, expiresAt: 0 }) });
-                activeSystemKey = null;
-                renderKeyStatus();
-                alert("已立即停用課堂密碼！所有學生將被強制登出。");
-            } catch(e) { alert("停用失敗！"); }
-        }
-
-        function renderKeyStatus() {
-            const txt = document.getElementById('key-status-text');
-            const disp = document.getElementById('current-active-key');
-            if (activeSystemKey && activeSystemKey.key && Date.now() < activeSystemKey.expiresAt) {
-                const minLeft = Math.ceil((activeSystemKey.expiresAt - Date.now()) / 60000);
-                txt.innerHTML = `✅ 已開放登入 <span class="text-apple-textSecLight dark:text-apple-textSecDark text-[12px] font-normal ml-2">(剩餘 ${minLeft} 分鐘)</span>`;
-                txt.className = "font-bold text-green-600 dark:text-green-400";
-                disp.innerText = activeSystemKey.key;
-            } else {
-                txt.innerHTML = "⛔ 未開放或已過期";
-                txt.className = "font-bold text-red-600 dark:text-red-400";
-                disp.innerText = "------";
-            }
+            }; reader.readAsText(file);
         }
     </script>
 </body>
