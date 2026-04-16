@@ -171,12 +171,12 @@
             <h3 class="mb-8 text-center" style="font-size: 28px;">進入課堂</h3>
             <div class="space-y-6">
                 <div>
-                    <label class="block text-[12px] font-semibold mb-2 text-apple-textSecLight dark:text-apple-textSecDark">班級</label>
-                    <input type="text" id="student-class" class="apple-input" placeholder="例如：3A">
+                    <label class="block text-[12px] font-semibold mb-2 text-apple-textSecLight dark:text-apple-textSecDark">班級 (例如：1A 至 6E)</label>
+                    <input type="text" id="student-class" class="apple-input" placeholder="例如：3A" maxlength="2" oninput="this.value=this.value.toUpperCase()">
                 </div>
                 <div>
-                    <label class="block text-[12px] font-semibold mb-2 text-apple-textSecLight dark:text-apple-textSecDark">學號</label>
-                    <input type="text" id="student-id" class="apple-input" placeholder="例如：01">
+                    <label class="block text-[12px] font-semibold mb-2 text-apple-textSecLight dark:text-apple-textSecDark">學號 (例如：01 至 45)</label>
+                    <input type="text" id="student-id" class="apple-input" placeholder="例如：01" maxlength="2" oninput="this.value=this.value.replace(/[^0-9]/g, '')">
                 </div>
                 
                 <div class="pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
@@ -272,9 +272,10 @@
                 </div>
             </div>
 
-            <div class="flex space-x-2 mb-8 p-1 bg-[#fafafc] dark:bg-[#272729] rounded-[11px] inline-flex border border-gray-200 dark:border-gray-700">
+            <div class="flex space-x-2 mb-8 p-1 bg-[#fafafc] dark:bg-[#272729] rounded-[11px] inline-flex border border-gray-200 dark:border-gray-700 flex-wrap gap-y-2">
                 <button onclick="switchTeacherTab('grades')" id="tab-btn-grades" class="px-5 py-2 bg-white dark:bg-[#1d1d1f] shadow-sm rounded-[8px] text-[14px] font-bold text-apple-textLight dark:text-apple-textDark transition">成績與防作弊監控</button>
                 <button onclick="switchTeacherTab('problems')" id="tab-btn-problems" class="px-5 py-2 text-[14px] font-medium text-apple-textSecLight dark:text-apple-textSecDark hover:text-apple-textLight dark:hover:text-apple-textDark transition rounded-[8px]">題目管理 (出題)</button>
+                <button onclick="switchTeacherTab('database')" id="tab-btn-database" class="px-5 py-2 text-[14px] font-medium text-apple-textSecLight dark:text-apple-textSecDark hover:text-apple-textLight dark:hover:text-apple-textDark transition rounded-[8px]">資料庫管理</button>
             </div>
 
             <div id="teacher-tab-grades">
@@ -284,14 +285,15 @@
                     <button onclick="generateLeaderboard('focus')" class="apple-btn-pill">最高專注榜</button>
                 </div>
 
-                <div class="mb-6 flex items-center space-x-3">
-                    <label class="text-[14px] font-bold text-apple-textLight dark:text-apple-textDark">選擇要查看的題目成績：</label>
+                <div class="mb-6 flex flex-wrap items-center gap-y-3">
+                    <label class="text-[14px] font-bold text-apple-textLight dark:text-apple-textDark mr-2">選擇要查看的題目成績：</label>
                     <select id="teacher-problem-filter" onchange="renderTeacherTable()" class="apple-input py-1 px-3 w-auto text-[14px] font-medium">
                         <option value="all">全部題目</option>
                     </select>
                     
-                    <label class="text-[14px] font-bold text-apple-textLight dark:text-apple-textDark ml-4">日期：</label>
+                    <label class="text-[14px] font-bold text-apple-textLight dark:text-apple-textDark ml-4 mr-2">日期：</label>
                     <input type="date" id="teacher-date-filter" onchange="renderTeacherTable()" class="apple-input py-1 px-3 w-auto text-[14px] font-medium">
+                    <button onclick="document.getElementById('teacher-date-filter').value=''; renderTeacherTable();" class="apple-btn-pill ml-2 text-[12px]">全部日期</button>
                 </div>
                 
                 <div class="overflow-x-auto rounded-[8px] border border-gray-200 dark:border-gray-700">
@@ -371,6 +373,22 @@
                     <input type="text" id="teacher-problem-search" placeholder="🔍 搜尋題目..." class="apple-input mb-4" oninput="renderTeacherProblemList()">
                     <ul id="teacher-problem-list" class="space-y-2 max-h-96 overflow-y-auto pr-2"></ul>
                 </div>
+            </div>
+
+            <div id="teacher-tab-database" class="hidden space-y-6">
+                <div class="flex items-center space-x-4 mb-4 flex-wrap gap-y-3">
+                    <label class="font-bold text-[14px] text-apple-textLight dark:text-apple-textDark">選擇資料表：</label>
+                    <select id="db-table-select" class="apple-input w-auto py-1 px-3 text-[14px]" onchange="loadDatabaseTable()">
+                        <option value="problems">題目庫 (problems)</option>
+                        <option value="submissions">遞交記錄 (submissions)</option>
+                        <option value="system">系統設定 (system)</option>
+                        <option value="session_stats">狀態統計 (session_stats)</option>
+                    </select>
+                    <button onclick="loadDatabaseTable()" class="apple-btn-pill text-[14px]">重新載入</button>
+                    <button onclick="saveDatabaseTable()" class="apple-btn-primary font-medium py-1 px-4 text-[14px]">儲存變更</button>
+                </div>
+                <p class="text-[12px] text-red-600 dark:text-red-400 font-bold mb-2">⚠ 警告：直接修改資料庫可能導致系統錯誤，請確認 JSON 格式完全正確後再進行儲存。</p>
+                <textarea id="db-json-editor" class="w-full h-[500px] apple-input font-mono text-[14px] leading-relaxed bg-[#fafafc] dark:bg-[#1d1d1f]" spellcheck="false" placeholder="載入中..."></textarea>
             </div>
         </div>
     </main>
@@ -569,6 +587,20 @@ builtins.input = custom_input
             
             if (!cls || !sid || !enteredKey) {
                 errorMsg.innerText = "請填寫班級、學號與「課堂密碼」";
+                errorMsg.classList.remove('hidden');
+                return;
+            }
+
+            // 嚴格檢查班別 1A-6E
+            if (!/^[1-6][A-E]$/.test(cls)) {
+                errorMsg.innerText = "⛔ 班級格式錯誤！請輸入如 1A 至 6E 的有效班級（2個字符，大寫）。";
+                errorMsg.classList.remove('hidden');
+                return;
+            }
+
+            // 嚴格檢查學號 01-45
+            if (!/^(0[1-9]|[1-3][0-9]|4[0-5])$/.test(sid)) {
+                errorMsg.innerText = "⛔ 學號格式錯誤！請輸入 01 至 45 的兩位數字。";
                 errorMsg.classList.remove('hidden');
                 return;
             }
@@ -890,7 +922,10 @@ builtins.input = custom_input
 
             try {
                 let patchedStudentCode = await patchStudentCode(studentCode, false);
-                const script = prob.testScript.replace('{STUDENT_CODE}', patchedStudentCode.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/'/g, "\\'").replace(/\n/g, '\\n'));
+                
+                // 替換 STUDENT_CODE 與 EXPECTED_OUTPUT（修正分數總是為 0 的問題）
+                let script = prob.testScript.replace('{STUDENT_CODE}', patchedStudentCode.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/'/g, "\\'").replace(/\n/g, '\\n'));
+                script = script.replace('{EXPECTED_OUTPUT}', (prob.expected_output || "").replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/'/g, "\\'").replace(/\n/g, '\\n'));
                 
                 const resStr = await pyodide.runPythonAsync(script);
                 const resParts = String(resStr).split(',');
@@ -1258,13 +1293,57 @@ builtins.input = custom_input
         }
 
         function switchTeacherTab(tabName) {
-            document.getElementById('teacher-tab-grades').classList.add('hidden');
-            document.getElementById('teacher-tab-problems').classList.add('hidden');
-            document.getElementById('tab-btn-grades').className = "px-5 py-2 text-[14px] font-medium text-apple-textSecLight dark:text-apple-textSecDark hover:text-apple-textLight dark:hover:text-apple-textDark transition rounded-[8px]";
-            document.getElementById('tab-btn-problems').className = "px-5 py-2 text-[14px] font-medium text-apple-textSecLight dark:text-apple-textSecDark hover:text-apple-textLight dark:hover:text-apple-textDark transition rounded-[8px]";
+            // 先隱藏所有分頁並重置按鈕樣式
+            ['grades', 'problems', 'database'].forEach(t => {
+                const el = document.getElementById(`teacher-tab-${t}`);
+                const btn = document.getElementById(`tab-btn-${t}`);
+                if(el) el.classList.add('hidden');
+                if(btn) btn.className = "px-5 py-2 text-[14px] font-medium text-apple-textSecLight dark:text-apple-textSecDark hover:text-apple-textLight dark:hover:text-apple-textDark transition rounded-[8px]";
+            });
             
-            document.getElementById(`teacher-tab-${tabName}`).classList.remove('hidden');
-            document.getElementById(`tab-btn-${tabName}`).className = "px-5 py-2 bg-white dark:bg-[#1d1d1f] shadow-sm rounded-[8px] text-[14px] font-bold text-apple-textLight dark:text-apple-textDark transition";
+            // 顯示目標分頁並套用啟用樣式
+            const targetEl = document.getElementById(`teacher-tab-${tabName}`);
+            const targetBtn = document.getElementById(`tab-btn-${tabName}`);
+            if(targetEl) targetEl.classList.remove('hidden');
+            if(targetBtn) targetBtn.className = "px-5 py-2 bg-white dark:bg-[#1d1d1f] shadow-sm rounded-[8px] text-[14px] font-bold text-apple-textLight dark:text-apple-textDark transition";
+            
+            // 如果是資料庫分頁，自動載入一次資料
+            if (tabName === 'database') loadDatabaseTable();
+        }
+
+        // --- 資料庫管理功能 ---
+        async function loadDatabaseTable() {
+            if (!teacherToken) return;
+            const tableName = document.getElementById('db-table-select').value;
+            const editor = document.getElementById('db-json-editor');
+            editor.value = "載入中，請稍候...";
+            try {
+                const res = await fetch(`${FIREBASE_BASE_URL}/${tableName}.json${getAuthQuery()}`).then(r => r.json());
+                editor.value = JSON.stringify(res || {}, null, 4);
+            } catch (e) {
+                editor.value = "載入失敗：\n" + e.message;
+            }
+        }
+
+        async function saveDatabaseTable() {
+            if (!teacherToken) return;
+            const tableName = document.getElementById('db-table-select').value;
+            const jsonStr = document.getElementById('db-json-editor').value;
+            
+            try {
+                const parsedData = JSON.parse(jsonStr); // 驗證 JSON 格式
+                if (confirm(`⚠️ 警告：這將會完全覆寫 [${tableName}] 資料表！\n確定要繼續嗎？`)) {
+                    await fetch(`${FIREBASE_BASE_URL}/${tableName}.json${getAuthQuery()}`, {
+                        method: 'PUT',
+                        body: JSON.stringify(parsedData)
+                    });
+                    alert(`✅ [${tableName}] 資料表儲存成功！`);
+                    // 重新整理現有資料狀態
+                    loadDataAndRender();
+                }
+            } catch (e) {
+                alert("❌ 儲存失敗！請檢查 JSON 格式是否正確：\n" + e.message);
+            }
         }
 
         function downloadJSONTemplate() {
