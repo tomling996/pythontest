@@ -26,6 +26,20 @@
                             inputLight: '#fafafc',
                             inputDark: '#272729'
                         }
+                    },
+                    animation: {
+                        'fade-in-up': 'fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+                        'toast-enter': 'toastEnter 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+                    },
+                    keyframes: {
+                        fadeInUp: {
+                            '0%': { opacity: '0', transform: 'translateY(15px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' },
+                        },
+                        toastEnter: {
+                            '0%': { opacity: '0', transform: 'translateX(100%)' },
+                            '100%': { opacity: '1', transform: 'translateX(0)' },
+                        }
                     }
                 }
             }
@@ -143,9 +157,23 @@
         #terminal-output::-webkit-scrollbar { width: 8px; }
         #terminal-output::-webkit-scrollbar-track { background: #1d1d1f; }
         #terminal-output::-webkit-scrollbar-thumb { background: rgba(210, 210, 215, 0.64); border-radius: 50px; }
+        
+        /* Split Pane Base Customization */
+        .split-container { display: flex; flex-direction: column; gap: 1.5rem; }
+        @media (min-width: 1024px) {
+            .split-container { flex-direction: row; }
+            .split-left { width: 40%; }
+            .split-right { width: 60%; }
+        }
+
+        .view-section { display: none; }
+        .view-section.active { display: block; animation: fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
     </style>
 </head>
 <body class="min-h-screen relative pb-10">
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed top-20 right-6 z-[100] flex flex-col gap-3 pointer-events-none"></div>
 
     <header class="apple-nav flex justify-between items-center px-6 sticky top-0 z-50">
         <div class="cursor-pointer hover:text-gray-300 transition" onclick="goHome()">
@@ -160,14 +188,14 @@
         </div>
     </header>
 
-    <main id="app-container" class="max-w-[980px] mx-auto p-4 md:p-8 mt-6">
+    <main id="app-container" class="max-w-[1100px] mx-auto p-4 md:p-8 mt-6">
         
-        <div id="loading-view" class="text-center py-20">
+        <div id="loading-view" class="view-section active text-center py-20">
             <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0071e3] mx-auto mb-4"></div>
             <p class="text-apple-textSecLight dark:text-apple-textSecDark font-medium">系統初始化中（正在載入 Python 引擎與資料庫）...</p>
         </div>
 
-        <div id="login-view" class="hidden apple-card max-w-md mx-auto">
+        <div id="login-view" class="view-section apple-card max-w-md mx-auto">
             <h3 class="mb-8 text-center" style="font-size: 28px;">進入課堂</h3>
             <div class="space-y-6">
                 <div>
@@ -189,20 +217,33 @@
             <p id="login-error" class="text-red-600 dark:text-red-400 text-[14px] font-medium mt-4 hidden text-center"></p>
         </div>
 
-        <div id="problem-select-view" class="hidden apple-card max-w-2xl mx-auto">
-            <div class="flex justify-between items-end mb-8 border-b border-gray-200 dark:border-gray-700 pb-4">
+        <div id="problem-select-view" class="view-section apple-card max-w-2xl mx-auto">
+            <div class="flex justify-between items-end mb-6 border-b border-gray-200 dark:border-gray-700 pb-4">
                 <h2 style="font-size: 40px; line-height: 1.10;">請選擇題目</h2>
                 <span class="text-[14px] font-medium text-apple-textSecLight dark:text-apple-textSecDark" id="student-info-display-1"></span>
             </div>
+            
+            <!-- 學生學習進度條 -->
+            <div class="mb-8" id="student-progress-container">
+                <div class="flex justify-between items-end mb-2">
+                    <span class="text-[14px] font-bold text-apple-textLight dark:text-apple-textDark">學習進度</span>
+                    <span class="text-[14px] font-bold text-[#0071e3]" id="student-progress-text">0%</span>
+                </div>
+                <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+                    <div id="student-progress-bar" class="bg-[#0071e3] h-2.5 rounded-full transition-all duration-500" style="width: 0%"></div>
+                </div>
+            </div>
+
             <div class="mb-8">
                 <input type="text" id="student-problem-search" placeholder="🔍 搜尋題目 (名稱或編號)..." class="apple-input" oninput="renderStudentProblemList()">
             </div>
             <div id="problem-list" class="space-y-2"></div>
         </div>
 
-        <div id="student-view" class="hidden space-y-8">
+        <div id="student-view" class="view-section">
             <div class="apple-card">
-                <div class="flex flex-col md:flex-row justify-between items-center mb-8 space-y-4 md:space-y-0 border-b border-gray-200 dark:border-gray-700 pb-4">
+                <!-- 標題與導航 -->
+                <div class="flex flex-col md:flex-row justify-between items-center mb-6 space-y-4 md:space-y-0 border-b border-gray-200 dark:border-gray-700 pb-4">
                     <h3 id="problem-title" style="font-size: 28px;"></h3>
                     <div class="flex items-center space-x-3">
                         <button onclick="navigateProblem(-1)" class="apple-btn-pill">⬅️ 上一題</button>
@@ -212,42 +253,51 @@
                     </div>
                 </div>
                 
-                <div class="bg-[#fafafc] dark:bg-[#272729] p-6 rounded-[11px] mb-6 whitespace-pre-wrap font-mono text-[14px] leading-relaxed text-apple-textLight dark:text-apple-textDark border border-gray-200 dark:border-gray-700" id="problem-desc"></div>
-                
-                <div id="expected-output-container" class="mt-4 mb-8 hidden">
-                    <h4 class="text-[14px] font-semibold mb-2 text-apple-textSecLight dark:text-apple-textSecDark">💡 預期輸出範例 (Expected Output)：</h4>
-                    <pre id="problem-expected-output" class="bg-[#fafafc] dark:bg-[#272729] p-4 rounded-[11px] text-[14px] font-mono whitespace-pre-wrap border-l-4 border-[#0071e3] text-apple-textLight dark:text-apple-textDark"></pre>
-                </div>
+                <!-- 左右分割佈局 -->
+                <div class="split-container">
+                    <!-- 左側：題目描述 -->
+                    <div class="split-left flex flex-col space-y-4">
+                        <div class="bg-[#fafafc] dark:bg-[#272729] p-6 rounded-[11px] whitespace-pre-wrap font-mono text-[14px] leading-relaxed text-apple-textLight dark:text-apple-textDark border border-gray-200 dark:border-gray-700 h-auto" id="problem-desc"></div>
+                        
+                        <div id="expected-output-container" class="hidden flex-1">
+                            <h4 class="text-[14px] font-semibold mb-2 text-apple-textSecLight dark:text-apple-textSecDark">💡 預期輸出範例 (Expected Output)：</h4>
+                            <pre id="problem-expected-output" class="bg-[#fafafc] dark:bg-[#272729] p-4 rounded-[11px] text-[14px] font-mono whitespace-pre-wrap border-l-4 border-[#0071e3] text-apple-textLight dark:text-apple-textDark h-full"></pre>
+                        </div>
+                    </div>
 
-                <div class="mb-3 flex justify-between text-[14px] text-apple-textSecLight dark:text-apple-textSecDark">
-                    <span class="font-medium">你的程式碼：</span>
-                    <span id="submission-count" class="font-bold text-[#0071e3]">總遞交次數：0</span>
-                </div>
-                
-                <div id="student-editor" class="w-full h-80 border border-gray-300 dark:border-gray-700 rounded-[8px]"></div>
-                
-                <div class="mt-6 rounded-[11px] overflow-hidden shadow-sm border border-gray-300 dark:border-gray-700">
-                    <div class="bg-[#1d1d1f] text-white px-4 py-3 flex justify-between items-center">
-                        <span class="text-[12px] font-medium flex items-center tracking-wide">
-                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M4 17h16a2 2 0 002-2V5a2 2 0 00-2-2H4a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
-                            Terminal
-                        </span>
-                        <button onclick="clearTerminal()" class="text-[12px] text-gray-300 hover:text-white transition">清除紀錄</button>
+                    <!-- 右側：編輯器與終端機 -->
+                    <div class="split-right flex flex-col">
+                        <div class="mb-3 flex justify-between text-[14px] text-apple-textSecLight dark:text-apple-textSecDark">
+                            <span class="font-medium">你的程式碼：</span>
+                            <span id="submission-count" class="font-bold text-[#0071e3]">總遞交次數：0</span>
+                        </div>
+                        
+                        <div id="student-editor" class="w-full h-[350px] lg:h-[400px] border border-gray-300 dark:border-gray-700 rounded-[8px]"></div>
+                        
+                        <div class="mt-4 rounded-[11px] overflow-hidden shadow-sm border border-gray-300 dark:border-gray-700 flex-1">
+                            <div class="bg-[#1d1d1f] text-white px-4 py-2 flex justify-between items-center">
+                                <span class="text-[12px] font-medium flex items-center tracking-wide">
+                                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M4 17h16a2 2 0 002-2V5a2 2 0 00-2-2H4a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                                    Terminal
+                                </span>
+                                <button onclick="clearTerminal()" class="text-[12px] text-gray-300 hover:text-white transition">清除紀錄</button>
+                            </div>
+                            <div id="terminal-output" class="w-full h-36 bg-[#000000] text-[#34d399] font-mono p-4 overflow-y-auto whitespace-pre-wrap text-[14px] leading-relaxed"></div>
+                        </div>
+                        
+                        <div class="mt-4 flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
+                            <div class="space-x-3 flex w-full md:w-auto">
+                                <button id="test-btn" onclick="toggleTestCode()" class="bg-[#1d1d1f] dark:bg-[#f5f5f7] text-white dark:text-[#1d1d1f] px-[15px] py-[8px] rounded-[8px] text-[17px] font-medium hover:opacity-90 transition flex-1 md:flex-none">🔍 測試程式碼</button>
+                                <button id="submit-btn" onclick="submitCode()" class="apple-btn-primary flex-1 md:flex-none font-medium">🚀 正式遞交</button>
+                            </div>
+                            <div id="result-message" class="font-bold text-[17px] hidden text-center md:text-right w-full md:w-auto"></div>
+                        </div>
                     </div>
-                    <div id="terminal-output" class="w-full h-40 bg-[#000000] text-[#34d399] font-mono p-4 overflow-y-auto whitespace-pre-wrap text-[14px] leading-relaxed"></div>
-                </div>
-                
-                <div class="mt-8 flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
-                    <div class="space-x-3 flex w-full md:w-auto">
-                        <button id="test-btn" onclick="toggleTestCode()" class="bg-[#1d1d1f] dark:bg-[#f5f5f7] text-white dark:text-[#1d1d1f] px-[15px] py-[8px] rounded-[8px] text-[17px] font-medium hover:opacity-90 transition flex-1 md:flex-none">🔍 測試程式碼</button>
-                        <button id="submit-btn" onclick="submitCode()" class="apple-btn-primary flex-1 md:flex-none font-medium">🚀 正式遞交</button>
-                    </div>
-                    <div id="result-message" class="font-bold text-[17px] hidden text-center md:text-right w-full md:w-auto"></div>
                 </div>
             </div>
         </div>
 
-        <div id="teacher-view" class="hidden apple-card">
+        <div id="teacher-view" class="view-section apple-card">
             <div class="flex justify-between items-center mb-10 pb-6 border-b border-gray-200 dark:border-gray-700">
                 <h2 style="font-size: 40px; line-height: 1.10;">老師專區</h2>
                 <div class="space-x-4">
@@ -255,7 +305,7 @@
                 </div>
             </div>
 
-            <div class="bg-[#fafafc] dark:bg-[#272729] p-6 rounded-[11px] mb-10 flex flex-col md:flex-row justify-between items-center border border-gray-200 dark:border-gray-700">
+            <div class="bg-[#fafafc] dark:bg-[#272729] p-6 rounded-[11px] mb-8 flex flex-col md:flex-row justify-between items-center border border-gray-200 dark:border-gray-700">
                 <div class="mb-4 md:mb-0">
                     <h4 class="text-[17px] font-semibold flex items-center text-apple-textLight dark:text-apple-textDark">
                         課堂密碼控制 (防作弊與計時器重置)
@@ -279,6 +329,22 @@
             </div>
 
             <div id="teacher-tab-grades">
+                <!-- 數據儀表板 -->
+                <div id="teacher-dashboard-stats" class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div class="bg-[#fafafc] dark:bg-[#272729] p-4 rounded-[11px] border border-gray-200 dark:border-gray-700 text-center">
+                        <div class="text-[12px] font-bold text-apple-textSecLight dark:text-apple-textSecDark mb-1">參與學生數</div>
+                        <div class="text-2xl font-bold text-[#0071e3]" id="stat-students">0</div>
+                    </div>
+                    <div class="bg-[#fafafc] dark:bg-[#272729] p-4 rounded-[11px] border border-gray-200 dark:border-gray-700 text-center">
+                        <div class="text-[12px] font-bold text-apple-textSecLight dark:text-apple-textSecDark mb-1">平均分數</div>
+                        <div class="text-2xl font-bold text-green-600 dark:text-green-400" id="stat-avg-score">0</div>
+                    </div>
+                    <div class="bg-[#fafafc] dark:bg-[#272729] p-4 rounded-[11px] border border-gray-200 dark:border-gray-700 text-center">
+                        <div class="text-[12px] font-bold text-apple-textSecLight dark:text-apple-textSecDark mb-1">總遞交次數</div>
+                        <div class="text-2xl font-bold text-purple-600 dark:text-purple-400" id="stat-submissions">0</div>
+                    </div>
+                </div>
+
                 <div class="mb-6 flex space-x-3 items-center">
                     <span class="text-[14px] font-bold text-apple-textLight dark:text-apple-textDark">🏆 產生龍虎榜：</span>
                     <button onclick="generateLeaderboard('score')" class="apple-btn-pill">綜合高分榜</button>
@@ -388,12 +454,39 @@
                     <button onclick="saveDatabaseTable()" class="apple-btn-primary font-medium py-1 px-4 text-[14px]">儲存變更</button>
                 </div>
                 <p class="text-[12px] text-red-600 dark:text-red-400 font-bold mb-2">⚠ 警告：直接修改資料庫可能導致系統錯誤，請確認 JSON 格式完全正確後再進行儲存。</p>
-                <textarea id="db-json-editor" class="w-full h-[500px] apple-input font-mono text-[14px] leading-relaxed bg-[#fafafc] dark:bg-[#1d1d1f]" spellcheck="false" placeholder="載入中..."></textarea>
+                <div id="db-json-editor" class="w-full h-[500px] border border-gray-300 dark:border-gray-700 rounded-[8px]"></div>
             </div>
         </div>
     </main>
 
-    <div id="teacher-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
+    <!-- Generic Confirm Modal -->
+    <div id="confirm-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[200] p-4">
+        <div class="apple-card max-w-sm w-full text-center p-6 border border-gray-700">
+            <div class="text-4xl mb-4">⚠️</div>
+            <h3 class="text-[17px] font-bold mb-4 text-apple-textLight dark:text-apple-textDark" id="confirm-message">確定要執行此操作嗎？</h3>
+            <div class="flex space-x-3 mt-6">
+                <button id="confirm-no" class="flex-1 bg-gray-200 dark:bg-[#373739] text-[#1d1d1f] dark:text-white px-4 py-2 rounded-[8px] font-medium transition hover:opacity-80">取消</button>
+                <button id="confirm-yes" class="flex-1 bg-red-600 text-white px-4 py-2 rounded-[8px] font-medium transition hover:bg-red-700">確定</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leaderboard Modal -->
+    <div id="leaderboard-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[150] p-4">
+        <div class="apple-card max-w-lg w-full border border-gray-700 max-h-[80vh] flex flex-col">
+            <div class="flex justify-between items-center mb-4 border-b border-gray-200 dark:border-gray-700 pb-3">
+                <h3 class="text-[21px] font-bold text-apple-textLight dark:text-apple-textDark" id="leaderboard-title">🏆 龍虎榜</h3>
+                <button onclick="closeLeaderboard()" class="text-[24px] font-bold text-apple-textSecLight dark:text-apple-textSecDark hover:text-apple-textLight">&times;</button>
+            </div>
+            <div id="leaderboard-content" class="overflow-y-auto space-y-3 pb-4"></div>
+            <div class="pt-4 border-t border-gray-200 dark:border-gray-700 text-center">
+                <button onclick="closeLeaderboard()" class="apple-btn-primary font-medium w-full">關閉</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Teacher Login Modal -->
+    <div id="teacher-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[150]">
         <div class="apple-card max-w-sm w-full text-center p-8 border border-gray-700">
             <h3 class="text-[21px] font-bold mb-2">老師管理後台</h3>
             <p class="text-[14px] text-apple-textSecLight dark:text-apple-textSecDark mb-8">請使用授權的 Google 帳號登入</p>
@@ -407,7 +500,8 @@
         </div>
     </div>
 
-    <div id="code-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <!-- Code History Modal -->
+    <div id="code-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[150] p-4">
         <div class="apple-card max-w-3xl w-full border border-gray-700">
             <div class="flex justify-between items-center mb-6 border-b border-gray-200 dark:border-gray-700 pb-4">
                 <h3 class="text-[21px] font-bold text-[#0071e3]" id="code-modal-title">學生程式碼歷史紀錄</h3>
@@ -448,7 +542,7 @@
         let dbSubmissions = {};
         let currentUser = null; 
         let currentProblemId = null;
-        let studentEditor, teacherDefaultEditor, teacherTestEditor, teacherHistoryEditor;
+        let studentEditor, teacherDefaultEditor, teacherTestEditor, teacherHistoryEditor, dbJsonEditor;
         let editingProblemId = null;
         let teacherToken = null;
         let awayStartTime = null;
@@ -459,33 +553,82 @@
 
         const defaultBeginnerTestScript = `import sys\nimport io\nimport builtins\n\ninput_values = []\n\noriginal_input = builtins.input\ndef mock_input(prompt=""):\n    sys.stdout.write(prompt)\n    val = input_values.pop(0) if input_values else ""\n    sys.stdout.write(str(val) + "\\n")\n    return val\n\nbuiltins.input = mock_input\ncaptured_output = io.StringIO()\nsys.stdout = captured_output\n\ntry:\n    exec("""{STUDENT_CODE}""", globals())\nexcept Exception:\n    pass\nfinally:\n    sys.stdout = sys.__stdout__\n    builtins.input = original_input\n\nstudent_out = captured_output.getvalue()\nexpected_out = """{EXPECTED_OUTPUT}"""\n\nout_lines = [line.strip() for line in student_out.splitlines() if line.strip() != ""]\nexp_lines = [line.strip() for line in expected_out.splitlines() if line.strip() != ""]\n\npassed = 1 if out_lines == exp_lines else 0\nscore = 100 if passed else 0\n\nf"{passed},1,{score}"`;
 
+        // 顯示吐司提示取代 Alert
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            let bgClass = type === 'error' ? 'bg-red-600' : (type === 'info' ? 'bg-[#1d1d1f] dark:bg-[#f5f5f7] dark:text-[#1d1d1f]' : 'bg-[#0071e3]');
+            let icon = type === 'error' ? '❌' : (type === 'info' ? 'ℹ️' : '✅');
+
+            toast.className = `flex items-center px-4 py-3 rounded-[8px] shadow-lg text-white text-[14px] font-medium animate-toast-enter ${bgClass}`;
+            toast.innerHTML = `<span class="mr-2">${icon}</span> ${message}`;
+            
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateX(100%)';
+                toast.style.transition = 'all 0.3s ease';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // 自訂 Confirm 彈窗
+        function showConfirm(message) {
+            return new Promise((resolve) => {
+                const modal = document.getElementById('confirm-modal');
+                document.getElementById('confirm-message').innerText = message;
+                modal.classList.remove('hidden');
+                
+                const onYes = () => { cleanup(); resolve(true); };
+                const onNo = () => { cleanup(); resolve(false); };
+                
+                document.getElementById('confirm-yes').onclick = onYes;
+                document.getElementById('confirm-no').onclick = onNo;
+                
+                function cleanup() {
+                    modal.classList.add('hidden');
+                    document.getElementById('confirm-yes').onclick = null;
+                    document.getElementById('confirm-no').onclick = null;
+                }
+            });
+        }
+
+        function updateEditorThemes() {
+            const isDark = document.body.classList.contains('dark-mode');
+            const theme = isDark ? "ace/theme/monokai" : "ace/theme/chrome";
+            [studentEditor, teacherDefaultEditor, teacherTestEditor, teacherHistoryEditor, dbJsonEditor].forEach(ed => {
+                if (ed) ed.setTheme(theme);
+            });
+        }
+
         function initEditors() {
+            const isDark = document.body.classList.contains('dark-mode');
+            const theme = isDark ? "ace/theme/monokai" : "ace/theme/chrome";
             const editorSettings = {
                 mode: "ace/mode/python",
-                theme: "ace/theme/monokai",
+                theme: theme,
                 fontSize: "14px",
                 showPrintMargin: false,
                 enableBasicAutocompletion: true,
                 enableLiveAutocompletion: true
             };
-            studentEditor = ace.edit("student-editor");
-            studentEditor.setOptions(editorSettings);
             
-            teacherDefaultEditor = ace.edit("teacher-default-editor");
-            teacherDefaultEditor.setOptions(editorSettings);
+            studentEditor = ace.edit("student-editor"); studentEditor.setOptions(editorSettings);
+            teacherDefaultEditor = ace.edit("teacher-default-editor"); teacherDefaultEditor.setOptions(editorSettings);
             teacherDefaultEditor.setValue("# 在這裡寫下你的程式碼\n", -1);
-            
-            teacherTestEditor = ace.edit("teacher-test-editor");
-            teacherTestEditor.setOptions(editorSettings);
+            teacherTestEditor = ace.edit("teacher-test-editor"); teacherTestEditor.setOptions(editorSettings);
             teacherTestEditor.setValue(defaultBeginnerTestScript, -1);
             
             teacherHistoryEditor = ace.edit("code-modal-editor");
-            teacherHistoryEditor.setOptions({
-                ...editorSettings,
-                readOnly: true,
-                highlightActiveLine: false,
-                highlightGutterLine: false
+            teacherHistoryEditor.setOptions({ ...editorSettings, readOnly: true, highlightActiveLine: false, highlightGutterLine: false });
+
+            // JSON Editor
+            dbJsonEditor = ace.edit("db-json-editor");
+            dbJsonEditor.setOptions({
+                mode: "ace/mode/json", theme: theme, fontSize: "14px", showPrintMargin: false, useWorker: false
             });
+            dbJsonEditor.setValue("// 載入中...", -1);
         }
 
         async function init() {
@@ -514,8 +657,7 @@ builtins.input = custom_input
 
                 const pRes = await fetch(`${FIREBASE_BASE_URL}/problems.json`).then(r => r.json());
                 dbProblems = pRes || {};
-                document.getElementById('loading-view').classList.add('hidden');
-                showLogin();
+                showView('login-view');
             } catch (error) {
                 console.error("Pyodide 載入失敗:", error);
                 document.getElementById('loading-view').innerHTML = `<p class="text-red-600 font-bold">系統載入失敗，請檢查網路連線後重新整理。</p>`;
@@ -527,6 +669,7 @@ builtins.input = custom_input
             const isDark = document.body.classList.contains('dark-mode');
             localStorage.setItem('theme', isDark ? 'dark' : 'light');
             document.getElementById('theme-toggle-btn').innerText = isDark ? "☀️ 亮色模式" : "🌙 暗色模式";
+            updateEditorThemes();
         }
 
         window.onload = () => {
@@ -538,11 +681,13 @@ builtins.input = custom_input
         };
 
         function showView(viewId) {
-            document.getElementById('login-view').classList.add('hidden');
-            document.getElementById('problem-select-view').classList.add('hidden');
-            document.getElementById('student-view').classList.add('hidden');
-            document.getElementById('teacher-view').classList.add('hidden');
-            document.getElementById(viewId).classList.remove('hidden');
+            document.querySelectorAll('.view-section').forEach(el => {
+                el.classList.remove('active');
+            });
+            const target = document.getElementById(viewId);
+            target.classList.add('active');
+            // Trigger reflow for Ace to resize correctly in split layout
+            setTimeout(() => { if(studentEditor) studentEditor.resize(); }, 50);
         }
 
         function goHome() {
@@ -586,23 +731,13 @@ builtins.input = custom_input
             const loginBtn = document.getElementById('login-btn');
             
             if (!cls || !sid || !enteredKey) {
-                errorMsg.innerText = "請填寫班級、學號與「課堂密碼」";
-                errorMsg.classList.remove('hidden');
-                return;
+                errorMsg.innerText = "請填寫班級、學號與「課堂密碼」"; errorMsg.classList.remove('hidden'); return;
             }
-
-            // 嚴格檢查班別 1A-6E
             if (!/^[1-6][A-E]$/.test(cls)) {
-                errorMsg.innerText = "⛔ 班級格式錯誤！請輸入如 1A 至 6E 的有效班級（2個字符，大寫）。";
-                errorMsg.classList.remove('hidden');
-                return;
+                errorMsg.innerText = "⛔ 班級格式錯誤！請輸入如 1A 至 6E 的有效班級。"; errorMsg.classList.remove('hidden'); return;
             }
-
-            // 嚴格檢查學號 01-45
             if (!/^(0[1-9]|[1-3][0-9]|4[0-5])$/.test(sid)) {
-                errorMsg.innerText = "⛔ 學號格式錯誤！請輸入 01 至 45 的兩位數字。";
-                errorMsg.classList.remove('hidden');
-                return;
+                errorMsg.innerText = "⛔ 學號格式錯誤！請輸入 01 至 45 的兩位數字。"; errorMsg.classList.remove('hidden'); return;
             }
             
             loginBtn.innerText = "驗證密碼中...";
@@ -612,14 +747,10 @@ builtins.input = custom_input
             try {
                 const sysRes = await fetch(`${FIREBASE_BASE_URL}/system.json`).then(r => r.json());
                 if (!sysRes || !sysRes.key || Date.now() > sysRes.expiresAt) {
-                    errorMsg.innerText = "⛔ 目前未開放登入，請等待老師提供新的課堂密碼。";
-                    errorMsg.classList.remove('hidden');
-                    return;
+                    errorMsg.innerText = "⛔ 目前未開放登入，請等待老師提供新的課堂密碼。"; errorMsg.classList.remove('hidden'); return;
                 }
                 if (enteredKey !== sysRes.key) {
-                    errorMsg.innerText = "❌ 課堂密碼錯誤或已過期，請重新確認。";
-                    errorMsg.classList.remove('hidden');
-                    return;
+                    errorMsg.innerText = "❌ 課堂密碼錯誤或已過期，請重新確認。"; errorMsg.classList.remove('hidden'); return;
                 }
                 
                 activeSystemKey = sysRes;
@@ -638,31 +769,44 @@ builtins.input = custom_input
                 document.getElementById('student-problem-search').value = '';
                 renderStudentProblemList();
                 showView('problem-select-view');
+                showToast(`登入成功！歡迎，${infoStr}`, 'success');
             } catch (err) {
-                errorMsg.innerText = "網路連線錯誤，無法驗證密碼。";
-                errorMsg.classList.remove('hidden');
+                errorMsg.innerText = "網路連線錯誤，無法驗證密碼。"; errorMsg.classList.remove('hidden');
             } finally {
-                loginBtn.innerText = "登入";
-                loginBtn.disabled = false;
+                loginBtn.innerText = "登入"; loginBtn.disabled = false;
             }
         }
 
         function renderStudentProblemList() {
             const listDiv = document.getElementById('problem-list');
             listDiv.innerHTML = '';
-            if (Object.keys(dbProblems).length === 0) {
-                listDiv.innerHTML = '<p class="text-[14px] font-medium text-apple-textSecLight dark:text-apple-textSecDark">老師尚未新增任何題目。</p>';
-                return;
-            }
-            const searchKw = (document.getElementById('student-problem-search')?.value || '').toLowerCase();
             
             let probsArray = Object.entries(dbProblems).map(([pId, prob]) => ({ pId, ...prob }));
+            if (probsArray.length === 0) {
+                listDiv.innerHTML = '<p class="text-[14px] font-medium text-apple-textSecLight dark:text-apple-textSecDark">老師尚未新增任何題目。</p>';
+                document.getElementById('student-progress-text').innerText = '0%';
+                document.getElementById('student-progress-bar').style.width = '0%';
+                return;
+            }
+
             probsArray.sort((a, b) => {
                 const idA = a.id || a.title || "";
                 const idB = b.id || b.title || "";
                 return idA.localeCompare(idB, undefined, { numeric: true, sensitivity: 'base' });
             });
 
+            // 計算進度
+            let completedCount = 0;
+            probsArray.forEach(prob => {
+                const sub = dbSubmissions[`${currentUser.key}_${prob.pId}`];
+                if (sub && sub.attempts > 0) completedCount++;
+            });
+            const percent = Math.round((completedCount / probsArray.length) * 100);
+            document.getElementById('student-progress-text').innerText = `${percent}% (${completedCount}/${probsArray.length})`;
+            document.getElementById('student-progress-bar').style.width = `${percent}%`;
+
+            const searchKw = (document.getElementById('student-problem-search')?.value || '').toLowerCase();
+            
             probsArray.forEach(prob => {
                 const searchTarget = (prob.id || "") + " " + (prob.title || "");
                 if (searchKw && !searchTarget.toLowerCase().includes(searchKw)) return;
@@ -673,11 +817,9 @@ builtins.input = custom_input
                 let scoreText = '尚未作答';
                 let scoreColor = 'text-apple-textSecLight dark:text-apple-textSecDark opacity-70';
                 if (sub && sub.attempts > 0) {
-                    scoreText = '✅ 已完成';
-                    scoreColor = 'text-[#0071e3] font-bold';
+                    scoreText = '✅ 已完成'; scoreColor = 'text-[#0071e3] font-bold';
                 } else if (sub && sub.draftCode && sub.draftCode !== (prob.defaultCode || "# 在這裡寫下你的程式碼\n")) {
-                    scoreText = '📝 尚未遞交';
-                    scoreColor = 'text-yellow-600 dark:text-yellow-400 font-bold';
+                    scoreText = '📝 尚未遞交'; scoreColor = 'text-yellow-600 dark:text-yellow-400 font-bold';
                 }
 
                 const btn = document.createElement('button');
@@ -707,13 +849,8 @@ builtins.input = custom_input
             const sub = dbSubmissions[subKey];
             
             studentEditor.session.off('change', currentEditorChangeHandler);
-
-            if (sub && sub.draftCode) {
-                studentEditor.setValue(sub.draftCode, -1);
-            } else {
-                studentEditor.setValue(prob.defaultCode || "# 在這裡寫下你的程式碼\n", -1);
-            }
-            
+            if (sub && sub.draftCode) { studentEditor.setValue(sub.draftCode, -1); }
+            else { studentEditor.setValue(prob.defaultCode || "# 在這裡寫下你的程式碼\n", -1); }
             studentEditor.session.on('change', currentEditorChangeHandler);
             
             clearTerminal();
@@ -750,10 +887,7 @@ builtins.input = custom_input
             const btn = document.getElementById('submit-btn');
             const countSpan = document.getElementById('submission-count');
             
-            if (cooldownTimer) {
-                clearTimeout(cooldownTimer);
-                cooldownTimer = null;
-            }
+            if (cooldownTimer) { clearTimeout(cooldownTimer); cooldownTimer = null; }
 
             if (sub && sub.lastSubmitTimestamp) {
                 const diff = Date.now() - sub.lastSubmitTimestamp;
@@ -761,7 +895,7 @@ builtins.input = custom_input
                     btn.disabled = true;
                     btn.classList.add('opacity-50', 'cursor-not-allowed');
                     btn.innerText = `冷卻中 (${Math.ceil((30000 - diff)/1000)}s)`;
-                    countSpan.innerText = `總遞交次數：${sub.attempts} (請稍候再遞交)`;
+                    countSpan.innerText = `總遞交次數：${sub.attempts} (請稍候)`;
                     cooldownTimer = setTimeout(updateSubmitStatus, 1000);
                     return;
                 }
@@ -777,61 +911,32 @@ builtins.input = custom_input
             window.student_code_global = code;
             window.is_async_run = isAsync;
             await pyodide.runPythonAsync(`
-import ast
-import js
-
+import ast, js
 code = js.student_code_global
-
 class LoopPatcher(ast.NodeTransformer):
-    def __init__(self):
-        self.in_function = False
-
+    def __init__(self): self.in_function = False
     def visit_FunctionDef(self, node):
-        old = self.in_function
-        self.in_function = True
-        self.generic_visit(node)
-        self.in_function = old
-        return node
-
+        old = self.in_function; self.in_function = True; self.generic_visit(node); self.in_function = old; return node
     def visit_AsyncFunctionDef(self, node):
-        old = self.in_function
-        self.in_function = True
-        self.generic_visit(node)
-        self.in_function = old
-        return node
-
+        old = self.in_function; self.in_function = True; self.generic_visit(node); self.in_function = old; return node
     def visit_While(self, node):
         self.generic_visit(node)
         if not self.in_function:
             check_stmt = ast.parse('if getattr(js.window, "isExecuting", False) == False: raise Exception("用戶已取消執行")').body[0]
-            if getattr(js, 'is_async_run', False):
-                sleep_stmt = ast.parse('await __import__("asyncio").sleep(0.1)').body[0]
-            else:
-                sleep_stmt = ast.parse('__import__("time").sleep(0.1)').body[0]
-            node.body.insert(0, sleep_stmt)
-            node.body.insert(0, check_stmt)
+            sleep_stmt = ast.parse('await __import__("asyncio").sleep(0.1)' if getattr(js, 'is_async_run', False) else '__import__("time").sleep(0.1)').body[0]
+            node.body.insert(0, sleep_stmt); node.body.insert(0, check_stmt)
         return node
-
     def visit_For(self, node):
         self.generic_visit(node)
         if not self.in_function:
             check_stmt = ast.parse('if getattr(js.window, "isExecuting", False) == False: raise Exception("用戶已取消執行")').body[0]
-            if getattr(js, 'is_async_run', False):
-                sleep_stmt = ast.parse('await __import__("asyncio").sleep(0.1)').body[0]
-            else:
-                sleep_stmt = ast.parse('__import__("time").sleep(0.1)').body[0]
-            node.body.insert(0, sleep_stmt)
-            node.body.insert(0, check_stmt)
+            sleep_stmt = ast.parse('await __import__("asyncio").sleep(0.1)' if getattr(js, 'is_async_run', False) else '__import__("time").sleep(0.1)').body[0]
+            node.body.insert(0, sleep_stmt); node.body.insert(0, check_stmt)
         return node
-
 try:
-    tree = ast.parse(code)
-    tree = LoopPatcher().visit(tree)
-    ast.fix_missing_locations(tree)
-    patched_code = ast.unparse(tree)
+    tree = ast.parse(code); tree = LoopPatcher().visit(tree); ast.fix_missing_locations(tree); patched_code = ast.unparse(tree)
 except Exception as e:
     patched_code = code
-
 js.student_code_global = patched_code
             `);
             return window.student_code_global;
@@ -841,22 +946,19 @@ js.student_code_global = patched_code
             const btn = document.getElementById('test-btn');
             if (window.isExecuting) {
                 window.isExecuting = false;
-                btn.innerText = "🛑 正在取消...";
-                btn.disabled = true;
-                return;
+                btn.innerText = "🛑 正在取消..."; btn.disabled = true; return;
             }
             
             window.isExecuting = true;
             btn.innerText = "🛑 取消運行";
-            btn.classList.add('bg-red-600', 'text-white', 'dark:bg-red-600', 'dark:text-white');
-            btn.classList.remove('bg-[#1d1d1f]', 'dark:bg-[#f5f5f7]', 'text-white', 'dark:text-[#1d1d1f]');
+            btn.classList.add('bg-red-600', 'text-white', 'dark:bg-red-600');
+            btn.classList.remove('bg-[#1d1d1f]', 'dark:bg-[#f5f5f7]', 'dark:text-[#1d1d1f]');
             
             await testCode();
             
             window.isExecuting = false;
-            btn.innerText = "🔍 測試程式碼";
-            btn.disabled = false;
-            btn.classList.remove('bg-red-600', 'text-white', 'dark:bg-red-600', 'dark:text-white');
+            btn.innerText = "🔍 測試程式碼"; btn.disabled = false;
+            btn.classList.remove('bg-red-600', 'text-white', 'dark:bg-red-600');
             btn.classList.add('bg-[#1d1d1f]', 'dark:bg-[#f5f5f7]', 'text-white', 'dark:text-[#1d1d1f]');
         }
 
@@ -870,35 +972,24 @@ js.student_code_global = patched_code
             
             try {
                 studentCode = await patchStudentCode(studentCode, true);
-                
                 await pyodide.runPythonAsync(`
 import sys, builtins, js
 sys.stdout = sys.__stdout__
 def custom_input(prompt_text=""):
-    if getattr(js.window, 'isExecuting', False) == False:
-        raise Exception("用戶已取消執行")
+    if getattr(js.window, 'isExecuting', False) == False: raise Exception("用戶已取消執行")
     res = js.prompt(prompt_text)
-    if res is None:
-        js.window.isExecuting = False
-        raise Exception("用戶取消了輸入")
-    js.window.appendTerminal(str(prompt_text) + str(res) + "\\n", False)
-    return res
+    if res is None: js.window.isExecuting = False; raise Exception("用戶取消了輸入")
+    js.window.appendTerminal(str(prompt_text) + str(res) + "\\n", False); return res
 builtins.input = custom_input
                 `);
-
                 await pyodide.runPythonAsync(studentCode);
                 
                 window.appendTerminal("\n>>> 程式執行完畢。", false);
                 resultMsg.innerText = "ℹ️ 若確認無誤，請點擊「正式遞交」上傳。";
-                resultMsg.classList.remove('hidden', 'text-red-600', 'text-green-600', 'dark:text-red-400', 'dark:text-green-400');
-                resultMsg.classList.add('text-[#0071e3]');
+                resultMsg.className = "font-bold text-[17px] text-[#0071e3] text-center md:text-right w-full md:w-auto";
             } catch (err) {
-                // 取消精簡錯誤訊息：保留原本完整的底層錯誤輸出
-                let errMsg = err.toString();
-                
-                window.appendTerminal("\n>>> 系統執行發生錯誤！\n" + errMsg, true);
-                resultMsg.classList.remove('hidden', 'text-green-600', 'text-[#0071e3]', 'dark:text-green-400');
-                resultMsg.classList.add('text-red-600', 'dark:text-red-400');
+                window.appendTerminal("\n>>> 系統執行發生錯誤！\n" + err.toString(), true);
+                resultMsg.className = "font-bold text-[17px] text-red-600 dark:text-red-400 text-center md:text-right w-full md:w-auto";
                 resultMsg.innerText = "❌ 測試失敗，請檢查錯誤訊息。";
             }
         }
@@ -922,14 +1013,11 @@ builtins.input = custom_input
 
             try {
                 let patchedStudentCode = await patchStudentCode(studentCode, false);
-                
-                // 替換 STUDENT_CODE 與 EXPECTED_OUTPUT（修正分數總是為 0 的問題）
                 let script = prob.testScript.replace('{STUDENT_CODE}', patchedStudentCode.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/'/g, "\\'").replace(/\n/g, '\\n'));
                 script = script.replace('{EXPECTED_OUTPUT}', (prob.expected_output || "").replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/'/g, "\\'").replace(/\n/g, '\\n'));
                 
                 const resStr = await pyodide.runPythonAsync(script);
                 const resParts = String(resStr).split(',');
-                
                 const passed = parseInt(resParts[0]);
                 const score = parseInt(resParts[resParts.length - 1]);
 
@@ -940,41 +1028,31 @@ builtins.input = custom_input
                 const currentTimestamp = Date.now();
 
                 if (!dbSubmissions[subKey].history) dbSubmissions[subKey].history = [];
-                dbSubmissions[subKey].history.push({
-                    time: currentTimeStr,
-                    code: studentCode,
-                    score: score
-                });
-
+                dbSubmissions[subKey].history.push({ time: currentTimeStr, code: studentCode, score: score });
                 dbSubmissions[subKey].attempts += 1;
                 dbSubmissions[subKey].lastSubmitTime = currentTimeStr;
                 dbSubmissions[subKey].lastSubmitTimestamp = currentTimestamp;
                 dbSubmissions[subKey].awayTime = awaySeconds;
                 dbSubmissions[subKey].code = studentCode;
                 dbSubmissions[subKey].draftCode = studentCode;
-                
-                if (score > (dbSubmissions[subKey].maxScore || 0)) {
-                    dbSubmissions[subKey].maxScore = score;
-                }
+                if (score > (dbSubmissions[subKey].maxScore || 0)) dbSubmissions[subKey].maxScore = score;
 
                 try {
                     await fetch(`${FIREBASE_BASE_URL}/submissions/${subKey}.json`, { method: 'PUT', body: JSON.stringify(dbSubmissions[subKey]) });
                     window.appendTerminal(">>> 遞交程序完成。系統已紀錄你的最新程式碼！", false);
                     resultMsg.innerText = "✅ 遞交成功！你的程式碼已送出。";
-                    resultMsg.classList.remove('hidden', 'text-red-600', 'text-[#0071e3]', 'dark:text-red-400');
-                    resultMsg.classList.add('text-green-600', 'dark:text-green-400');
+                    resultMsg.className = "font-bold text-[17px] text-green-600 dark:text-green-400 text-center md:text-right w-full md:w-auto";
+                    showToast("遞交成功！", "success");
                 } catch (networkErr) {
                     resultMsg.innerText = "❌ 網路問題導致上傳失敗，請檢查網路狀態。";
-                    resultMsg.classList.remove('hidden', 'text-green-600', 'text-[#0071e3]', 'dark:text-green-400');
-                    resultMsg.classList.add('text-red-600', 'dark:text-red-400');
+                    resultMsg.className = "font-bold text-[17px] text-red-600 dark:text-red-400 text-center md:text-right w-full md:w-auto";
+                    showToast("上傳失敗，請重試", "error");
                 }
             } catch (err) {
                 window.appendTerminal("\n>>> 系統評分發生錯誤！請檢查語法或尋求老師協助。\n" + err.toString(), true);
                 resultMsg.innerText = "❌ 評分腳本執行失敗。";
-                resultMsg.classList.remove('hidden', 'text-green-600', 'text-[#0071e3]', 'dark:text-green-400');
-                resultMsg.classList.add('text-red-600', 'dark:text-red-400');
+                resultMsg.className = "font-bold text-[17px] text-red-600 dark:text-red-400 text-center md:text-right w-full md:w-auto";
             }
-            
             updateSubmitStatus();
         }
 
@@ -991,17 +1069,17 @@ builtins.input = custom_input
         async function verifyTeacher() {
             const btn = document.getElementById('teacher-login-btn');
             try {
-                btn.disabled = true;
-                btn.innerText = "驗證中...";
+                btn.disabled = true; btn.innerText = "驗證中...";
                 const result = await auth.signInWithPopup(provider);
                 const user = result.user;
                 if (user.email !== ALLOWED_TEACHER_EMAIL) {
-                    alert("登入失敗：這不是授權的老師帳號！");
+                    showToast("登入失敗：這不是授權的老師帳號！", "error");
                     await auth.signOut();
                     return;
                 }
                 teacherToken = await user.getIdToken();
                 closeTeacherModal();
+                showToast("登入成功！", "success");
                 
                 await loadDataAndRender();
                 updateTeacherProblemFilter();
@@ -1013,8 +1091,7 @@ builtins.input = custom_input
                 });
                 
             } catch (error) {
-                console.error("登入失敗:", error);
-                alert("登入過程出錯，請稍後再試。");
+                showToast("登入過程出錯，請稍後再試。", "error");
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = `<img class="h-5 w-5 mr-3" src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google">使用 Google 帳號登入`;
@@ -1028,10 +1105,6 @@ builtins.input = custom_input
             dbProblems = pRes || {};
             const sysRes = await fetch(`${FIREBASE_BASE_URL}/system.json${authQuery}`).then(r => r.json());
             activeSystemKey = sysRes || null;
-            if (activeSystemKey && activeSystemKey.key)
-                dbSessionStats = await fetch(`${FIREBASE_BASE_URL}/session_stats/${activeSystemKey.key}.json${authQuery}`).then(r => r.json()) || {};
-            else dbSessionStats = {};
-            
             renderTeacherTable();
             renderTeacherProblemList();
             renderKeyStatus();
@@ -1046,9 +1119,7 @@ builtins.input = custom_input
                 const idB = b.id || b.title || "";
                 return idA.localeCompare(idB, undefined, { numeric: true, sensitivity: 'base' });
             });
-            probsArray.forEach(prob => {
-                filter.innerHTML += `<option value="${prob.pId}">${prob.title}</option>`;
-            });
+            probsArray.forEach(prob => { filter.innerHTML += `<option value="${prob.pId}">${prob.title}</option>`; });
         }
 
         function generateLeaderboard(type) {
@@ -1064,31 +1135,47 @@ builtins.input = custom_input
             });
 
             let sorted = Object.values(studentStats);
-            let title = "";
+            let title = type === 'score' ? "🏆 綜合高分龍虎榜" : "🎯 最高專注排行榜";
+            
             if (type === 'score') {
-                title = "🏆 綜合高分龍虎榜 (依總分排序)";
                 sorted.sort((a, b) => b.totalScore - a.totalScore || a.awayTime - b.awayTime);
             } else {
-                title = "🎯 最高專注排行榜 (依離開視窗時間排序)";
                 sorted = sorted.filter(s => s.completedCount > 0);
                 sorted.sort((a, b) => a.awayTime - b.awayTime || b.totalScore - a.totalScore);
             }
             
-            let msg = `${title}\n──────────────────────\n`;
+            const modal = document.getElementById('leaderboard-modal');
+            document.getElementById('leaderboard-title').innerText = title;
+            const content = document.getElementById('leaderboard-content');
+            content.innerHTML = '';
+
             if (sorted.length === 0) {
-                msg += "目前尚無學生成績資料。";
+                content.innerHTML = "<p class='text-center py-4 text-gray-500'>目前尚無學生成績資料。</p>";
             } else {
                 sorted.slice(0, 10).forEach((s, idx) => {
-                    msg += `第 ${idx+1} 名 | ${s.cls}班 ${s.sid}號\n`;
-                    msg += `   ↳ 總分: ${s.totalScore} | 離開視窗: ${s.awayTime} 秒 | 完成題數: ${s.completedCount}\n`;
+                    let medal = idx === 0 ? '🥇' : (idx === 1 ? '🥈' : (idx === 2 ? '🥉' : `${idx+1}.`));
+                    content.innerHTML += `
+                        <div class="bg-[#fafafc] dark:bg-[#272729] p-3 rounded-[8px] flex justify-between items-center border border-gray-200 dark:border-gray-700">
+                            <div class="flex items-center">
+                                <span class="text-xl w-8 text-center mr-2">${medal}</span>
+                                <span class="font-bold text-[17px] text-apple-textLight dark:text-apple-textDark">${s.cls}班 ${s.sid}號</span>
+                            </div>
+                            <div class="text-right text-[12px] text-apple-textSecLight dark:text-apple-textSecDark">
+                                總分 <span class="font-bold text-[#0071e3] text-[14px]">${s.totalScore}</span> | 
+                                分心 <span class="font-bold ${s.awayTime>0?'text-red-500':'text-green-500'}">${s.awayTime}s</span>
+                            </div>
+                        </div>
+                    `;
                 });
             }
-            alert(msg);
+            modal.classList.remove('hidden');
         }
 
-        function getAuthQuery() {
-            return teacherToken ? `?auth=${teacherToken}` : '';
+        function closeLeaderboard() {
+            document.getElementById('leaderboard-modal').classList.add('hidden');
         }
+
+        function getAuthQuery() { return teacherToken ? `?auth=${teacherToken}` : ''; }
 
         function renderTeacherTable() {
             const tbody = document.getElementById('teacher-table-body');
@@ -1099,13 +1186,19 @@ builtins.input = custom_input
 
             let subs = Object.entries(dbSubmissions).map(([k, v]) => ({ key: k, ...v }));
 
+            // Update dashboard stats (based on all submissions before filtering)
+            let uniqueStudents = new Set(subs.map(s => `${s.cls}-${s.sid}`)).size;
+            let totalSubs = subs.reduce((acc, val) => acc + (val.attempts || 0), 0);
+            let avgScore = subs.length ? Math.round(subs.reduce((acc, val) => acc + (val.maxScore || 0), 0) / subs.length) : 0;
+            document.getElementById('stat-students').innerText = uniqueStudents;
+            document.getElementById('stat-avg-score').innerText = avgScore;
+            document.getElementById('stat-submissions').innerText = totalSubs;
+
             if (dateFilter) {
                 subs = subs.filter(sub => {
                     if (!sub.lastSubmitTimestamp) return false;
                     const d = new Date(sub.lastSubmitTimestamp);
-                    const yyyy = d.getFullYear();
-                    const mm = String(d.getMonth() + 1).padStart(2, '0');
-                    const dd = String(d.getDate()).padStart(2, '0');
+                    const yyyy = d.getFullYear(); const mm = String(d.getMonth() + 1).padStart(2, '0'); const dd = String(d.getDate()).padStart(2, '0');
                     return `${yyyy}-${mm}-${dd}` === dateFilter;
                 });
             }
@@ -1123,21 +1216,18 @@ builtins.input = custom_input
                 const tr = document.createElement('tr');
                 const probId = sub.key.split('_').slice(1).join('_');
                 const probTitle = dbProblems[probId] ? dbProblems[probId].title : '未知題目';
-                const currentSubKey = sub.key;
-                
-                const timeText = sub.lastSubmitTime || '無紀錄';
                 const awaySec = sub.awayTime || 0;
                 
                 tr.className = "hover:bg-gray-50 dark:hover:bg-[#373739] transition";
                 tr.innerHTML = `
                     <td class="py-3 px-4">${sub.cls}</td>
                     <td class="py-3 px-4">${sub.sid}</td>
-                    <td class="py-3 px-4">${probTitle}</td>
+                    <td class="py-3 px-4 truncate max-w-[150px]">${probTitle}</td>
                     <td class="py-3 px-4 font-bold text-[#0071e3]">${sub.maxScore || 0}</td>
                     <td class="py-3 px-4">${sub.attempts || 0}</td>
-                    <td class="py-3 px-4 text-apple-textSecLight dark:text-apple-textSecDark text-[12px] font-bold">${timeText}</td>
+                    <td class="py-3 px-4 text-apple-textSecLight dark:text-apple-textSecDark text-[12px] font-bold">${sub.lastSubmitTime || '-'}</td>
                     <td class="py-3 px-4 font-bold ${awaySec > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}">${awaySec} 秒</td>
-                    <td class="py-3 px-4 text-center"><button onclick="showCodeModal('${currentSubKey}')" class="apple-btn-pill font-medium text-[12px] py-1 px-3">查看紀錄</button></td>
+                    <td class="py-3 px-4 text-center"><button onclick="showCodeModal('${sub.key}')" class="apple-btn-pill font-medium text-[12px] py-1 px-3">查看紀錄</button></td>
                 `;
                 tbody.appendChild(tr);
             });
@@ -1170,7 +1260,7 @@ builtins.input = custom_input
         }
 
         async function saveProblem() {
-            if(!teacherToken) return alert("請先登入");
+            if(!teacherToken) return showToast("請先登入", "error");
             const title = document.getElementById('new-prob-title').value.trim();
             const desc = document.getElementById('new-prob-desc').value.trim();
             const expected_output = document.getElementById('new-prob-expected').value.trim();
@@ -1178,8 +1268,7 @@ builtins.input = custom_input
             const testScript = teacherTestEditor.getValue();
 
             if(!title || !desc || !testScript.includes('{STUDENT_CODE}')) {
-                alert("請填寫完整資訊，且測試腳本必須包含 {STUDENT_CODE} 標籤！");
-                return;
+                showToast("請填寫完整資訊，且測試腳本必須包含 {STUDENT_CODE} 標籤！", "error"); return;
             }
 
             const pId = editingProblemId ? editingProblemId : 'prob_' + Date.now();
@@ -1187,13 +1276,9 @@ builtins.input = custom_input
             
             try {
                 await fetch(`${FIREBASE_BASE_URL}/problems/${pId}.json${getAuthQuery()}`, { method: 'PUT', body: JSON.stringify(dbProblems[pId]) });
-                alert(editingProblemId ? "更新成功！" : "新增成功！");
-                cancelEdit();
-                renderTeacherProblemList();
-                updateTeacherProblemFilter();
-            } catch (err) {
-                alert("儲存失敗！");
-            }
+                showToast(editingProblemId ? "更新成功！" : "新增成功！", "success");
+                cancelEdit(); renderTeacherProblemList(); updateTeacherProblemFilter();
+            } catch (err) { showToast("儲存失敗！", "error"); }
         }
 
         function renderTeacherProblemList() {
@@ -1234,11 +1319,9 @@ builtins.input = custom_input
             document.getElementById('selectedCount').textContent = count;
             const btn = document.getElementById('bulkDeleteBtn');
             if (count > 0) {
-                btn.classList.remove('opacity-50', 'cursor-not-allowed');
-                btn.disabled = false;
+                btn.classList.remove('opacity-50', 'cursor-not-allowed'); btn.disabled = false;
             } else {
-                btn.classList.add('opacity-50', 'cursor-not-allowed');
-                btn.disabled = true;
+                btn.classList.add('opacity-50', 'cursor-not-allowed'); btn.disabled = true;
             }
             if (allCheckboxes.length > 0) selectAllCheckbox.checked = (count === allCheckboxes.length);
             else selectAllCheckbox.checked = false;
@@ -1250,50 +1333,43 @@ builtins.input = custom_input
         }
 
         async function bulkDeleteProblems() {
-            if(!teacherToken) return alert("請先登入");
+            if(!teacherToken) return showToast("請先登入", "error");
             const checkboxes = document.querySelectorAll('.problem-checkbox:checked');
             if (checkboxes.length === 0) return;
-            if (!confirm(`⚠️ 警告：確定要刪除這 ${checkboxes.length} 題嗎？\n刪除後將無法復原！`)) return;
+            
+            const confirmed = await showConfirm(`警告：確定要刪除這 ${checkboxes.length} 題嗎？\n刪除後將無法復原！`);
+            if (!confirmed) return;
             
             document.getElementById('bulkDeleteBtn').textContent = "刪除中...";
             document.getElementById('bulkDeleteBtn').disabled = true;
 
             const updates = {};
-            checkboxes.forEach(cb => {
-                const pId = cb.value;
-                updates[pId] = null;
-                delete dbProblems[pId];
-            });
+            checkboxes.forEach(cb => { const pId = cb.value; updates[pId] = null; delete dbProblems[pId]; });
 
             try {
                 await fetch(`${FIREBASE_BASE_URL}/problems.json${getAuthQuery()}`, { method: 'PATCH', body: JSON.stringify(updates) });
-                alert(`✅ 成功刪除 ${checkboxes.length} 題！`);
+                showToast(`✅ 成功刪除 ${checkboxes.length} 題！`, "success");
                 document.getElementById('selectAllCheckbox').checked = false;
-                renderTeacherProblemList();
-                updateTeacherProblemFilter();
+                renderTeacherProblemList(); updateTeacherProblemFilter();
             } catch (err) {
-                alert("刪除失敗！");
+                showToast("刪除失敗！", "error");
             } finally {
                 document.getElementById('bulkDeleteBtn').innerHTML = `🗑️ 刪除 (<span id="selectedCount">0</span>)`;
             }
         }
 
         async function clearSubmissions() {
-            if(!teacherToken) return alert("請先登入");
-            if (confirm("⚠️ 確定要清除「所有學生成績與遞交記錄」嗎？\n(此動作無法復原！)")) {
+            if(!teacherToken) return showToast("請先登入", "error");
+            const confirmed = await showConfirm("⚠️ 確定要清除「所有學生成績與遞交記錄」嗎？\n(此動作無法復原！)");
+            if (confirmed) {
                 try {
                     await fetch(`${FIREBASE_BASE_URL}/submissions.json${getAuthQuery()}`, { method: 'DELETE' });
-                    dbSubmissions = {};
-                    renderTeacherTable();
-                    alert("✅ 已清空所有成績！");
-                } catch (e) {
-                    alert("清除失敗！");
-                }
+                    dbSubmissions = {}; renderTeacherTable(); showToast("✅ 已清空所有成績！", "success");
+                } catch (e) { showToast("清除失敗！", "error"); }
             }
         }
 
         function switchTeacherTab(tabName) {
-            // 先隱藏所有分頁並重置按鈕樣式
             ['grades', 'problems', 'database'].forEach(t => {
                 const el = document.getElementById(`teacher-tab-${t}`);
                 const btn = document.getElementById(`tab-btn-${t}`);
@@ -1301,13 +1377,11 @@ builtins.input = custom_input
                 if(btn) btn.className = "px-5 py-2 text-[14px] font-medium text-apple-textSecLight dark:text-apple-textSecDark hover:text-apple-textLight dark:hover:text-apple-textDark transition rounded-[8px]";
             });
             
-            // 顯示目標分頁並套用啟用樣式
             const targetEl = document.getElementById(`teacher-tab-${tabName}`);
             const targetBtn = document.getElementById(`tab-btn-${tabName}`);
             if(targetEl) targetEl.classList.remove('hidden');
             if(targetBtn) targetBtn.className = "px-5 py-2 bg-white dark:bg-[#1d1d1f] shadow-sm rounded-[8px] text-[14px] font-bold text-apple-textLight dark:text-apple-textDark transition";
             
-            // 如果是資料庫分頁，自動載入一次資料
             if (tabName === 'database') loadDatabaseTable();
         }
 
@@ -1315,34 +1389,31 @@ builtins.input = custom_input
         async function loadDatabaseTable() {
             if (!teacherToken) return;
             const tableName = document.getElementById('db-table-select').value;
-            const editor = document.getElementById('db-json-editor');
-            editor.value = "載入中，請稍候...";
+            dbJsonEditor.setValue("// 載入中，請稍候...", -1);
             try {
                 const res = await fetch(`${FIREBASE_BASE_URL}/${tableName}.json${getAuthQuery()}`).then(r => r.json());
-                editor.value = JSON.stringify(res || {}, null, 4);
+                dbJsonEditor.setValue(JSON.stringify(res || {}, null, 4), -1);
             } catch (e) {
-                editor.value = "載入失敗：\n" + e.message;
+                dbJsonEditor.setValue("// 載入失敗：\n" + e.message, -1);
+                showToast("載入資料失敗", "error");
             }
         }
 
         async function saveDatabaseTable() {
             if (!teacherToken) return;
             const tableName = document.getElementById('db-table-select').value;
-            const jsonStr = document.getElementById('db-json-editor').value;
+            const jsonStr = dbJsonEditor.getValue();
             
             try {
-                const parsedData = JSON.parse(jsonStr); // 驗證 JSON 格式
-                if (confirm(`⚠️ 警告：這將會完全覆寫 [${tableName}] 資料表！\n確定要繼續嗎？`)) {
-                    await fetch(`${FIREBASE_BASE_URL}/${tableName}.json${getAuthQuery()}`, {
-                        method: 'PUT',
-                        body: JSON.stringify(parsedData)
-                    });
-                    alert(`✅ [${tableName}] 資料表儲存成功！`);
-                    // 重新整理現有資料狀態
+                const parsedData = JSON.parse(jsonStr); 
+                const confirmed = await showConfirm(`⚠️ 警告：這將會完全覆寫 [${tableName}] 資料表！\n確定要繼續嗎？`);
+                if (confirmed) {
+                    await fetch(`${FIREBASE_BASE_URL}/${tableName}.json${getAuthQuery()}`, { method: 'PUT', body: JSON.stringify(parsedData) });
+                    showToast(`✅ [${tableName}] 資料表儲存成功！`, "success");
                     loadDataAndRender();
                 }
             } catch (e) {
-                alert("❌ 儲存失敗！請檢查 JSON 格式是否正確：\n" + e.message);
+                showToast("❌ 儲存失敗！JSON 格式有誤，請檢查編輯器內容。", "error");
             }
         }
 
@@ -1361,7 +1432,7 @@ builtins.input = custom_input
             reader.onload = async function(e) {
                 try {
                     const importedData = JSON.parse(e.target.result);
-                    if (!Array.isArray(importedData)) { alert("匯入失敗：JSON 格式錯誤。"); return; }
+                    if (!Array.isArray(importedData)) { showToast("匯入失敗：JSON 格式錯誤。", "error"); return; }
                     let successCount = 0; const updates = {};
                     importedData.forEach((prob, index) => {
                         const probDesc = prob.desc || prob.description; const probScript = prob.testScript || prob.test_script;
@@ -1371,9 +1442,11 @@ builtins.input = custom_input
                         }
                     });
                     if (successCount > 0) {
-                        await fetch(`${FIREBASE_BASE_URL}/problems.json${getAuthQuery()}`, { method: 'PATCH', body: JSON.stringify(updates) }); alert(`✅ 成功匯入 ${successCount} 筆題目！`); renderTeacherProblemList(); updateTeacherProblemFilter();
-                    } else alert("未能匯入任何題目。");
-                } catch (err) { alert("匯入失敗：檔案無法解析為正確的 JSON 格式。"); }
+                        await fetch(`${FIREBASE_BASE_URL}/problems.json${getAuthQuery()}`, { method: 'PATCH', body: JSON.stringify(updates) }); 
+                        showToast(`✅ 成功匯入 ${successCount} 筆題目！`, "success"); 
+                        renderTeacherProblemList(); updateTeacherProblemFilter();
+                    } else showToast("未能匯入任何題目。", "info");
+                } catch (err) { showToast("匯入失敗：檔案無法解析為 JSON。", "error"); }
                 event.target.value = '';
             }; 
             reader.readAsText(file);
@@ -1381,10 +1454,10 @@ builtins.input = custom_input
 
         async function teacherLogout() {
             await auth.signOut();
-            teacherToken = null;
-            dbSubmissions = {};
+            teacherToken = null; dbSubmissions = {};
             firebase.database().ref('submissions').off('value');
             showLogin();
+            showToast("已登出老師後台", "info");
         }
 
         function showCodeModal(subKey) {
@@ -1395,9 +1468,7 @@ builtins.input = custom_input
             selector.innerHTML = '';
             
             history.forEach((record, index) => {
-                const opt = document.createElement('option');
-                opt.value = index;
-                opt.text = `${record.time} (得分: ${record.score})`;
+                const opt = document.createElement('option'); opt.value = index; opt.text = `${record.time} (得分: ${record.score})`;
                 selector.appendChild(opt);
             });
             selector.value = history.length - 1;
@@ -1414,10 +1485,7 @@ builtins.input = custom_input
             }
         }
 
-        function closeCodeModal() {
-            document.getElementById('code-modal').classList.add('hidden');
-            window.currentViewingHistory = null;
-        }
+        function closeCodeModal() { document.getElementById('code-modal').classList.add('hidden'); window.currentViewingHistory = null; }
 
         // --- 防作弊相關 ---
         async function generateClassroomKey() {
@@ -1430,18 +1498,16 @@ builtins.input = custom_input
                 activeSystemKey = sysData;
                 await fetch(`${FIREBASE_BASE_URL}/session_stats/${key}.json${getAuthQuery()}`, { method: 'PUT', body: JSON.stringify({ createdAt: Date.now() }) });
                 renderKeyStatus();
-                alert(`✅ 新密碼已產生: ${key} (有效時間 120 分鐘)`);
-            } catch(e) { alert("產生密碼失敗！"); }
+                showToast(`✅ 新密碼已產生: ${key} (有效時間 120 分鐘)`, "success");
+            } catch(e) { showToast("產生密碼失敗！", "error"); }
         }
 
         async function disableClassroomKey() {
             if(!teacherToken) return;
             try {
                 await fetch(`${FIREBASE_BASE_URL}/system.json${getAuthQuery()}`, { method: 'PUT', body: JSON.stringify({ key: null, expiresAt: 0 }) });
-                activeSystemKey = null;
-                renderKeyStatus();
-                alert("已立即停用課堂密碼！所有學生將被強制登出。");
-            } catch(e) { alert("停用失敗！"); }
+                activeSystemKey = null; renderKeyStatus(); showToast("已立即停用課堂密碼！", "info");
+            } catch(e) { showToast("停用失敗！", "error"); }
         }
 
         function renderKeyStatus() {
@@ -1450,12 +1516,9 @@ builtins.input = custom_input
             if (activeSystemKey && activeSystemKey.key && Date.now() < activeSystemKey.expiresAt) {
                 const minLeft = Math.ceil((activeSystemKey.expiresAt - Date.now()) / 60000);
                 txt.innerHTML = `✅ 已開放登入 <span class="text-apple-textSecLight dark:text-apple-textSecDark text-[12px] font-normal ml-2">(剩餘 ${minLeft} 分鐘)</span>`;
-                txt.className = "font-bold text-green-600 dark:text-green-400";
-                disp.innerText = activeSystemKey.key;
+                txt.className = "font-bold text-green-600 dark:text-green-400"; disp.innerText = activeSystemKey.key;
             } else {
-                txt.innerHTML = "⛔ 未開放或已過期";
-                txt.className = "font-bold text-red-600 dark:text-red-400";
-                disp.innerText = "------";
+                txt.innerHTML = "⛔ 未開放或已過期"; txt.className = "font-bold text-red-600 dark:text-red-400"; disp.innerText = "------";
             }
         }
     </script>
