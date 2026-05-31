@@ -946,7 +946,7 @@ builtins.input = custom_input
                 if (diff < 30000) {
                     btn.disabled = true;
                     btn.classList.add('opacity-50', 'cursor-not-allowed');
-                    btn.innerText = `冷卻中 (${Math.ceil((30000 - diff)/1000)}s)`;
+                    btn.innerText = `冷卻中 (${Math.ceil((5000 - diff)/1000)}s)`;
                     countSpan.innerText = `總遞交次數：${sub.attempts} (請稍候)`;
                     cooldownTimer = setTimeout(updateSubmitStatus, 1000);
                     return;
