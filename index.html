@@ -1177,10 +1177,28 @@ builtins.input = custom_input
 
         function generateLeaderboard(type) {
             const studentStats = {};
-            Object.values(dbSubmissions).forEach(sub => {
-                const key = `${sub.cls}-${sub.sid}`;
+            Object.entries(dbSubmissions).forEach(([k, sub]) => {
+                let cls = sub.cls;
+                let sid = sub.sid;
+                
+                // 自動修復缺失的班級學號
+                if (!cls || cls === "undefined" || !sid || sid === "undefined") {
+                    const underIdx = k.indexOf('_');
+                    if (underIdx !== -1) {
+                        const userStr = k.substring(0, underIdx);
+                        const dashIdx = userStr.indexOf('-');
+                        if (dashIdx !== -1) {
+                            cls = userStr.substring(0, dashIdx);
+                            sid = userStr.substring(dashIdx + 1);
+                        }
+                    }
+                }
+                cls = cls || "未知";
+                sid = sid || "未知";
+
+                const key = `${cls}-${sid}`;
                 if (!studentStats[key]) {
-                    studentStats[key] = { cls: sub.cls, sid: sub.sid, totalScore: 0, awayTime: 0, completedCount: 0 };
+                    studentStats[key] = { cls: cls, sid: sid, totalScore: 0, awayTime: 0, completedCount: 0 };
                 }
                 studentStats[key].totalScore += (sub.maxScore || 0);
                 if (sub.attempts > 0) studentStats[key].completedCount += 1;
@@ -1239,7 +1257,28 @@ builtins.input = custom_input
 
             let subs = Object.entries(dbSubmissions).map(([k, v]) => ({ key: k, ...v }));
 
-            // Update dashboard stats (based on all submissions before filtering)
+            // 修正 undefined 班別與學號
+            subs.forEach(sub => {
+                if (!sub.cls || sub.cls === "undefined" || !sub.sid || sub.sid === "undefined") {
+                    const underIdx = (sub.key || "").indexOf('_');
+                    if (underIdx !== -1) {
+                        const userStr = sub.key.substring(0, underIdx);
+                        const dashIdx = userStr.indexOf('-');
+                        if (dashIdx !== -1) {
+                            sub.cls = userStr.substring(0, dashIdx);
+                            sub.sid = userStr.substring(dashIdx + 1);
+                        } else {
+                            sub.cls = "未知";
+                            sub.sid = "未知";
+                        }
+                    } else {
+                        sub.cls = "未知";
+                        sub.sid = "未知";
+                    }
+                }
+            });
+
+            // Update dashboard stats
             let uniqueStudents = new Set(subs.map(s => `${s.cls}-${s.sid}`)).size;
             let totalSubs = subs.reduce((acc, val) => acc + (val.attempts || 0), 0);
             let avgScore = subs.length ? Math.round(subs.reduce((acc, val) => acc + (val.maxScore || 0), 0) / subs.length) : 0;
@@ -1260,14 +1299,20 @@ builtins.input = custom_input
                 subs = subs.filter(sub => sub.key.endsWith(`_${probFilter}`));
             }
 
+            // 安全的排序，避免 undefined 導致的崩潰
             subs.sort((a, b) => {
-                if (a.cls !== b.cls) return a.cls.localeCompare(b.cls);
-                return a.sid.localeCompare(b.sid);
+                const clsA = String(a.cls || "");
+                const clsB = String(b.cls || "");
+                if (clsA !== clsB) return clsA.localeCompare(clsB);
+                const sidA = String(a.sid || "");
+                const sidB = String(b.sid || "");
+                return sidA.localeCompare(sidB);
             });
 
             subs.forEach(sub => {
                 const tr = document.createElement('tr');
-                const probId = sub.key.split('_').slice(1).join('_');
+                const keyParts = sub.key.split('_');
+                const probId = keyParts.slice(1).join('_');
                 const probTitle = dbProblems[probId] ? dbProblems[probId].title : '未知題目';
                 const awaySec = sub.awayTime || 0;
                 
