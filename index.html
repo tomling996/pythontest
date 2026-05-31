@@ -943,7 +943,7 @@ builtins.input = custom_input
 
             if (sub && sub.lastSubmitTimestamp) {
                 const diff = Date.now() - sub.lastSubmitTimestamp;
-                if (diff < 30000) {
+                if (diff < 5000) {
                     btn.disabled = true;
                     btn.classList.add('opacity-50', 'cursor-not-allowed');
                     btn.innerText = `冷卻中 (${Math.ceil((5000 - diff)/1000)}s)`;
@@ -1037,7 +1037,7 @@ builtins.input = custom_input
                 await pyodide.runPythonAsync(studentCode);
                 
                 window.appendTerminal("\n>>> 程式執行完畢。", false);
-                resultMsg.innerText = "ℹ️ 若確認無誤，請點擊「正式遞交」上傳。";
+                resultMsg.innerText = "若確認無誤，點擊「正式遞交」上傳。";
                 resultMsg.className = "font-bold text-[17px] text-[#0071e3] text-center md:text-right w-full md:w-auto";
             } catch (err) {
                 window.appendTerminal("\n>>> 系統執行發生錯誤！\n" + err.toString(), true);
