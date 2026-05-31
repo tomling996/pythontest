@@ -545,6 +545,7 @@
         let studentEditor, teacherDefaultEditor, teacherTestEditor, teacherHistoryEditor, dbJsonEditor;
         let editingProblemId = null;
         let teacherToken = null;
+        let isAway = false;
         let awayStartTime = null;
         let totalAwayTime = 0;
         let activeSystemKey = null;
@@ -704,11 +705,59 @@ builtins.input = custom_input
 
         function showLogin() {
             currentUser = null;
+            isAway = false;
+            awayStartTime = null;
+            totalAwayTime = 0;
             document.getElementById('student-class').value = '';
             document.getElementById('student-id').value = '';
             document.getElementById('student-key').value = '';
+            updateAwayTimeUI();
             showView('login-view');
         }
+
+        function handleAway() {
+            if (!currentUser || !activeSystemKey || isAway) return;
+            isAway = true;
+            awayStartTime = Date.now();
+            updateAwayTimeUI();
+        }
+
+        async function handleReturn() {
+            if (!currentUser || !activeSystemKey || !isAway) return;
+            isAway = false;
+            if (awayStartTime) {
+                totalAwayTime += (Date.now() - awayStartTime);
+                awayStartTime = null;
+                updateAwayTimeUI();
+                await fetch(`${FIREBASE_BASE_URL}/session_stats/${activeSystemKey.key}/${currentUser.key}.json`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ awayTime: totalAwayTime })
+                }).catch(() => {});
+            }
+        }
+
+        window.addEventListener('blur', handleAway);
+        window.addEventListener('focus', handleReturn);
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) handleAway();
+            else handleReturn();
+        });
+
+        function updateAwayTimeUI() {
+            const display = document.getElementById('away-timer-display');
+            if (!currentUser) {
+                display.classList.add('hidden');
+                return;
+            }
+            display.classList.remove('hidden');
+            let ms = totalAwayTime;
+            if (isAway && awayStartTime) ms += (Date.now() - awayStartTime);
+            display.innerText = `⚠️ 離開視窗: ${Math.floor(ms / 1000)} 秒`;
+        }
+
+        setInterval(() => {
+            if (currentUser) updateAwayTimeUI();
+        }, 1000);
 
         window.appendTerminal = function(text, isError) {
             const terminal = document.getElementById('terminal-output');
@@ -762,6 +811,9 @@ builtins.input = custom_input
                 
                 const stats = await fetch(`${FIREBASE_BASE_URL}/session_stats/${activeSystemKey.key}/${currentUser.key}.json`).then(r=>r.json());
                 totalAwayTime = (stats && stats.awayTime) ? stats.awayTime : 0;
+                isAway = false;
+                awayStartTime = null;
+                updateAwayTimeUI();
                 
                 const sRes = await fetch(`${FIREBASE_BASE_URL}/submissions.json`).then(r => r.json());
                 dbSubmissions = sRes || {};
@@ -1023,7 +1075,8 @@ builtins.input = custom_input
 
                 window.appendTerminal(`>>> 評分結果：${score} 分\n`, passed !== 1);
                 
-                const awaySeconds = totalAwayTime || 0;
+                if (isAway) await handleReturn();
+                const awaySeconds = Math.floor(totalAwayTime / 1000);
                 const currentTimeStr = new Date().toLocaleString('zh-HK');
                 const currentTimestamp = Date.now();
 
